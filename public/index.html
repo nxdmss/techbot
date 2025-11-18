@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>bitter8</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="hero">
+        <div class="hero-content">
+            <h1>bitter8</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header-row">
+            <div class="logo">bitter8</div>
+            <div class="search-container">
+                <div class="search-box" id="searchBox">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        class="search-input" 
+                        placeholder="Поиск товаров..."
+                        autocomplete="off"
+                    >
+                    <button class="search-clear" id="searchClear" style="display: none;">✕</button>
+                </div>
+                <button class="search-toggle-btn" id="searchToggle">🔍</button>
+            </div>
+        </div>
+        
+        <!-- Brands Filter -->
+        <div class="brands-container">
+            <div class="brands-scroll" id="brandsScroll">
+                <div class="brand-chip active" data-brand="all" onclick="filterByBrand('all')">
+                    <div class="brand-name-text">ВСЕ</div>
+                </div>
+                <!-- Brands will be dynamically added here -->
+            </div>
+        </div>
+        
+        <div class="page-section" id="mainPage">
+            <div class="products-grid" id="productsGrid"></div>
+            <div class="no-results" id="noResults" style="display: none;">
+                <div class="no-results-icon">🔍</div>
+                <h3>Ничего не найдено</h3>
+                <p>Попробуйте изменить поисковый запрос</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="cart-button" id="cartButton">
+        <span class="cart-icon">🛒</span>
+        <span class="cart-count" id="cartCount">0</span>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div class="product-modal" id="productModal">
+        <div class="product-modal-content">
+            <div class="modal-swipe-indicator"></div>
+            <button class="modal-close" id="closeProductModal">✕</button>
+            <div class="product-modal-image"></div>
+            <div class="product-modal-info">
+                <h2 id="modalProductName"></h2>
+                <p class="modal-product-price" id="modalProductPrice"></p>
+                <p class="modal-product-desc" id="modalProductDesc"></p>
+                <div class="modal-product-specs">
+                    <h3>Характеристики</h3>
+                    <ul id="modalProductSpecs"></ul>
+                </div>
+                <button class="modal-add-btn" id="modalAddToCart">
+                    <span>Добавить в корзину</span>
+                    <span>🛒</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-content">
+            <div class="modal-swipe-indicator"></div>
+            <div class="cart-header">
+                <h2>Корзина</h2>
+                <button class="close-btn" id="closeCart">✕</button>
+            </div>
+            <div class="cart-items" id="cartItems"></div>
+            <div class="cart-footer">
+                <div class="cart-total">
+                    <span>Итого:</span>
+                    <span id="cartTotal">0 ₽</span>
+                </div>
+                <button class="checkout-btn" id="checkoutBtn">Оформить заказ</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

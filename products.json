@@ -1,0 +1,88 @@
+[
+    {
+        "id": 1,
+        "name": "Ajazz AK820 Pro",
+        "brand": "Ajazz",
+        "description": "Bluetooth, 2.4GHz",
+        "price": 4990,
+        "image": "/images/AjazzAK820Pro1.jpg",
+        "images": [
+            "/images/AjazzAK820Pro1.jpg",
+            "/images/AjazzAK820Pro2.jpg",
+            "/images/AjazzAK820Pro3.jpg"
+        ],
+        "fullDescription": "Механическая клавиатура с поддержкой Bluetooth и 2.4GHz подключения. Компактная 75% раскладка, горячая замена переключателей, RGB подсветка.",
+        "specs": [
+            "Подключение: Bluetooth 5.0, 2.4GHz, USB-C",
+            "Раскладка: 75% (82 клавиши)",
+            "Переключатели: Hot-swap",
+            "Батарея: 3000 мАч"
+        ]
+    },
+    {
+        "id": 2,
+        "name": "AirPods Pro 3",
+        "brand": "Apple",
+        "description": "Шумоподавление, пространственный звук",
+        "price": 24990,
+        "image": "/images/AirPodsPro3_1.jpg",
+        "images": [
+            "/images/AirPodsPro3_1.jpg",
+            "/images/AirPodsPro3_2.jpg",
+            "/images/AirPodsPro3_3.jpg"
+        ],
+        "fullDescription": "Беспроводные наушники с активным шумоподавлением и поддержкой пространственного звука. Улучшенное качество звука и комфортная посадка.",
+        "specs": [
+            "Активное шумоподавление",
+            "Пространственный звук с динамическим отслеживанием головы",
+            "Влагозащита IPX4",
+            "До 6 часов работы на одном заряде"
+        ]
+    },
+    {
+        "id": 3,
+        "name": "PlayStation 5 Anniversary Edition",
+        "brand": "Sony",
+        "description": "30-летие PlayStation, лимитированная версия",
+        "price": 89990,
+        "image": "/images/PS5A_1.jpg",
+        "images": [
+            "/images/PS5A_1.jpg",
+            "/images/PS5A_2.jpg",
+            "/images/PS5A_3.jpg"        
+        ],
+        "fullDescription": "Коллекционная версия PlayStation 5 в стиле оригинальной PlayStation 1. Уникальный серый дизайн, цветной логотип PlayStation и специальная упаковка в честь 30-летия бренда.",
+        "specs": [
+            "Процессор: AMD Zen 2, 8 ядер",
+            "Графика: AMD RDNA 2, 10.28 TFLOPS",
+            "Память: 16GB GDDR6",
+            "Накопитель: 1TB SSD",
+            "Разрешение: до 8K",
+            "Частота кадров: до 120fps",
+            "В комплекте: Контроллер DualSense Anniversary",
+            "Лимитированный выпуск"
+        ]
+    },
+    {
+        "id": 4,
+        "name": "Xiaomi 17 Pro",
+        "brand": "Xiaomi",
+        "description": "Флагманский смартфон с мощной камерой",
+        "price": 59990,
+        "image": "/images/Xiaomi17Pro_1.jpg",
+        "images": [
+            "/images/Xiaomi17Pro_1.jpg",
+            "/images/Xiaomi17Pro_2.jpg",
+            "/images/Xiaomi17Pro_3.jpg"
+        ],
+        "fullDescription": "Флагманский смартфон Xiaomi 17 Pro с мощной камерой и высокопроизводительным процессором.",
+        "specs": [
+            "Процессор: Snapdragon 8 Gen 1",
+            "Камера: 108MP основная, 12MP ультраширокая",
+            "Экран: 6.67\" AMOLED, 120Hz",
+            "Батарея: 4500 мАч, быстрая зарядка 120W"
+
+
+        ]
+    }
+]
