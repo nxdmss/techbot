@@ -485,6 +485,28 @@ body.dark .product-image {
     justify-content: center;
 }
 
+.telegram-sticker {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    animation: duckBounce 2s ease-in-out infinite;
+}
+
+@keyframes duckBounce {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    25% {
+        transform: translateY(-10px) rotate(-5deg);
+    }
+    50% {
+        transform: translateY(-5px) rotate(0deg);
+    }
+    75% {
+        transform: translateY(-10px) rotate(5deg);
+    }
+}
+
 .empty-state h3 {
     font-size: 1.2rem;
     margin-bottom: 8px;

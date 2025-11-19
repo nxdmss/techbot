@@ -156,10 +156,16 @@ function renderFavorites() {
     const favoriteProducts = state.products.filter(p => state.favorites.includes(p.id));
     const grid = document.getElementById('favoriteProducts');
     const empty = document.getElementById('emptyFavorites');
+    const stickerEl = document.getElementById('emptyFavoritesSticker');
     
     if (favoriteProducts.length === 0) {
         grid.innerHTML = '';
         empty.classList.add('active');
+        // Показываем анимированную уточку из Telegram
+        if (stickerEl && !stickerEl.hasAttribute('data-sticker-loaded')) {
+            showTelegramDuck(stickerEl);
+            stickerEl.setAttribute('data-sticker-loaded', 'true');
+        }
         return;
     }
     
@@ -187,10 +193,48 @@ function renderFavorites() {
     }).join('');
 }
 
+// Функция для отображения анимированной уточки из Telegram
+function showTelegramDuck(container) {
+    // Популярная уточка из Telegram - используем несколько вариантов для надежности
+    const stickerUrls = [
+        'https://tlgrm.ru/_/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/1.webp',
+        'https://cdn.tlgrm.app/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/192/1.webp',
+        'https://tlgrm.ru/_/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/192/1.webp'
+    ];
+    
+    // Пробуем загрузить стикер, если не получается - показываем эмодзи уточки
+    const img = document.createElement('img');
+    img.src = stickerUrls[0];
+    img.alt = 'Уточка';
+    img.className = 'telegram-sticker';
+    img.onerror = function() {
+        // Если стикер не загрузился, пробуем следующий URL
+        if (stickerUrls.length > 1) {
+            this.src = stickerUrls[1];
+            this.onerror = function() {
+                if (stickerUrls.length > 2) {
+                    this.src = stickerUrls[2];
+                    this.onerror = function() {
+                        // Если все не удалось, показываем большую уточку эмодзи
+                        container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
+                    };
+                } else {
+                    container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
+                }
+            };
+        } else {
+            container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
+        }
+    };
+    container.innerHTML = '';
+    container.appendChild(img);
+}
+
 // Render cart
 function renderCart() {
     const cartItems = document.getElementById('cartItems');
     const empty = document.getElementById('emptyCart');
+    const stickerEl = document.getElementById('emptyCartSticker');
     const footer = document.getElementById('cartFooter');
     const checkoutBar = document.getElementById('checkoutBar');
     
@@ -199,6 +243,11 @@ function renderCart() {
         empty.classList.add('active');
         footer.classList.remove('active');
         checkoutBar.classList.remove('active');
+        // Показываем анимированную уточку из Telegram
+        if (stickerEl && !stickerEl.hasAttribute('data-sticker-loaded')) {
+            showTelegramDuck(stickerEl);
+            stickerEl.setAttribute('data-sticker-loaded', 'true');
+        }
         return;
     }
     
