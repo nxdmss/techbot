@@ -840,50 +840,62 @@ document.getElementById('modalSupportBtn').addEventListener('click', () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 });
 
+// Функция переключения страниц
+function navigateToPage(page) {
+    state.currentPage = page;
+    
+    // Update nav
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const navBtn = document.querySelector(`[data-page="${page}"]`);
+    if (navBtn) navBtn.classList.add('active');
+    
+    // Update pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const pageEl = document.querySelector(`[data-page="${page}"]`);
+    if (pageEl && pageEl.classList.contains('page')) {
+        pageEl.classList.add('active');
+    } else {
+        const pageSection = document.querySelector(`section[data-page="${page}"]`);
+        if (pageSection) pageSection.classList.add('active');
+    }
+    
+    // Show/hide catalog controls (brands, sort, search)
+    const brandsWrapper = document.getElementById('brandsWrapper');
+    const sortMenu = document.getElementById('sortMenu');
+    const searchBar = document.getElementById('searchBar');
+    const searchBtn = document.getElementById('searchBtn');
+    
+    if (page === 'catalog') {
+        brandsWrapper.style.display = 'flex';
+        searchBtn.style.display = 'flex';
+    } else {
+        brandsWrapper.style.display = 'none';
+        sortMenu.classList.remove('active');
+        searchBar.classList.remove('active');
+        searchBtn.style.display = 'none';
+    }
+    
+    // Show/hide checkout bar
+    const checkoutBar = document.getElementById('checkoutBar');
+    if (page === 'cart' && state.cart.length > 0) {
+        checkoutBar.classList.add('active');
+    } else {
+        checkoutBar.classList.remove('active');
+    }
+    
+    // Render page content
+    if (page === 'favorites') renderFavorites();
+    if (page === 'cart') renderCart();
+    if (page === 'profile') loadProfile();
+    
+    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
 // Navigation
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const page = btn.dataset.page;
-        state.currentPage = page;
-        
-        // Update nav
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        
-        // Update pages
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelector(`[data-page="${page}"]`).classList.add('active');
-        
-        // Show/hide catalog controls (brands, sort, search)
-        const brandsWrapper = document.getElementById('brandsWrapper');
-        const sortMenu = document.getElementById('sortMenu');
-        const searchBar = document.getElementById('searchBar');
-        const searchBtn = document.getElementById('searchBtn');
-        
-        if (page === 'catalog') {
-            brandsWrapper.style.display = 'flex';
-            searchBtn.style.display = 'flex';
-        } else {
-            brandsWrapper.style.display = 'none';
-            sortMenu.classList.remove('active');
-            searchBar.classList.remove('active');
-            searchBtn.style.display = 'none';
-        }
-        
-        // Show/hide checkout bar
-        const checkoutBar = document.getElementById('checkoutBar');
-        if (page === 'cart' && state.cart.length > 0) {
-            checkoutBar.classList.add('active');
-        } else {
-            checkoutBar.classList.remove('active');
-        }
-        
-        // Render page content
-        if (page === 'favorites') renderFavorites();
-        if (page === 'cart') renderCart();
-        if (page === 'profile') loadProfile();
-        
-        if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        navigateToPage(page);
     });
 });
 
@@ -1171,11 +1183,7 @@ document.addEventListener('keydown', (e) => {
         
         // 4. Вернуться на каталог с любой страницы
         if (state.currentPage !== 'catalog') {
-            const catalogBtn = document.querySelector('[data-page="catalog"]');
-            if (catalogBtn) {
-                catalogBtn.click();
-                if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-            }
+            navigateToPage('catalog');
         }
         // Если уже на каталоге и ничего не открыто - ESC предотвращает закрытие приложения, но ничего не делает
     }
