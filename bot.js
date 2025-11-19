@@ -101,20 +101,44 @@ const PORT = process.env.PORT || 3000;
 // Railway автоматически предоставляет переменную RAILWAY_PUBLIC_DOMAIN
 // Если она есть, используем её, иначе берем из переменной окружения
 const getWebAppUrl = () => {
+    // Приоритет 1: Railway автоматический домен
     if (process.env.RAILWAY_PUBLIC_DOMAIN) {
         return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
     }
+    
+    // Приоритет 2: Railway статический URL
     if (process.env.RAILWAY_STATIC_URL) {
         return process.env.RAILWAY_STATIC_URL;
     }
+    
+    // Приоритет 3: Ручной WEB_APP_URL
     if (process.env.WEB_APP_URL) {
-        return process.env.WEB_APP_URL;
+        const url = process.env.WEB_APP_URL;
+        
+        // Проверка на старый ngrok URL
+        if (url.includes('ngrok') || url.includes('ngrok-free.dev')) {
+            console.warn('⚠️ ВНИМАНИЕ: Обнаружен ngrok URL в WEB_APP_URL!');
+            console.warn('⚠️ Ngrok больше не используется. Удалите WEB_APP_URL из переменных окружения.');
+            console.warn('⚠️ Railway автоматически определит URL через RAILWAY_PUBLIC_DOMAIN');
+            console.warn(`⚠️ Текущий URL: ${url}`);
+            console.warn('⚠️ Убедитесь, что домен сгенерирован в Railway Settings → Networking');
+        }
+        
+        return url;
     }
+    
     // Для локальной разработки
     return `http://localhost:${PORT}`;
 };
 
 const WEB_APP_URL = getWebAppUrl();
+
+// Логируем предупреждение при старте, если используется ngrok
+if (WEB_APP_URL.includes('ngrok') || WEB_APP_URL.includes('ngrok-free.dev')) {
+    console.error('❌ ОШИБКА: Используется ngrok URL!');
+    console.error('❌ Удалите WEB_APP_URL из переменных окружения на Railway');
+    console.error('❌ Railway автоматически определит правильный URL');
+}
 
 // Security middleware
 app.disable('x-powered-by'); // Скрываем информацию о Express
