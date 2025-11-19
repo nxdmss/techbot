@@ -1,6 +1,11 @@
 # Railway ignore file
 # Файлы, которые не нужно загружать на Railway
 
+# Переменные окружения (настраиваются в Railway Dashboard)
+.env
+.env.local
+.env.*.local
+
 # Локальные файлы разработки
 .DS_Store
 *.log
@@ -14,4 +19,16 @@ shop.db*
 # Документация (опционально)
 QUILVEY_FIX.md
 DEPLOY.md
+RAILWAY_DEPLOY.md
+RAILWAY_FIX.md
+FIX_NGROK.md
+QUICK_DEPLOY.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
 

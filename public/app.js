@@ -1130,9 +1130,63 @@ function initPageControls() {
     checkoutBar.classList.remove('active');
 }
 
+// ESC key handler - возврат на шаг назад
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+        // 1. Закрыть модальное окно товара, если открыто
+        const modal = document.getElementById('productModal');
+        if (modal && modal.classList.contains('active')) {
+            closeModal();
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            return;
+        }
+        
+        // 2. Закрыть меню сортировки, если открыто
+        const sortMenu = document.getElementById('sortMenu');
+        if (sortMenu && sortMenu.classList.contains('active')) {
+            sortMenu.classList.remove('active');
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            return;
+        }
+        
+        // 3. Закрыть поиск, если открыт
+        const searchBar = document.getElementById('searchBar');
+        if (searchBar && searchBar.classList.contains('active')) {
+            searchBar.classList.remove('active');
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.value = '';
+                state.searchQuery = '';
+                renderProducts();
+            }
+            const searchClear = document.getElementById('searchClear');
+            if (searchClear) searchClear.classList.remove('active');
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            return;
+        }
+        
+        // 4. Вернуться на каталог, если находимся на другой странице
+        if (state.currentPage !== 'catalog') {
+            const catalogBtn = document.querySelector('[data-page="catalog"]');
+            if (catalogBtn) {
+                catalogBtn.click();
+                if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            }
+        }
+    }
+});
+
 // Init app
 document.addEventListener('DOMContentLoaded', () => {
     initPageControls();
+    // Убеждаемся, что каталог активен при загрузке
+    state.currentPage = 'catalog';
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-page="catalog"]').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const catalogNavBtn = document.querySelector('[data-page="catalog"]');
+    if (catalogNavBtn) catalogNavBtn.classList.add('active');
+    
     loadProducts();
     loadProfile();
 });

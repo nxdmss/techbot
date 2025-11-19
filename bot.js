@@ -1,4 +1,7 @@
-require('dotenv').config();
+// Загружаем переменные окружения из .env (только для локальной разработки)
+// На Railway переменные окружения настраиваются через Dashboard
+require('dotenv').config({ silent: true });
+
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const path = require('path');
@@ -10,7 +13,9 @@ db.initializeDatabase();
 
 // Проверка наличия токена
 if (!process.env.BOT_TOKEN) {
-    console.error('Ошибка: BOT_TOKEN не найден в .env файле!');
+    console.error('❌ Ошибка: BOT_TOKEN не найден!');
+    console.error('📝 Для локальной разработки: создайте .env файл с BOT_TOKEN=ваш_токен');
+    console.error('📝 На Railway: настройте переменную BOT_TOKEN в Dashboard → Variables');
     process.exit(1);
 }
 
@@ -115,10 +120,10 @@ const getWebAppUrl = () => {
     if (process.env.WEB_APP_URL) {
         const url = process.env.WEB_APP_URL;
         
-        // Проверка на старый ngrok URL
-        if (url.includes('ngrok') || url.includes('ngrok-free.dev')) {
+        // Проверка на ngrok URL (только для production, для локальной разработки это нормально)
+        if ((url.includes('ngrok') || url.includes('ngrok-free.dev')) && process.env.NODE_ENV === 'production') {
             console.warn('⚠️ ВНИМАНИЕ: Обнаружен ngrok URL в WEB_APP_URL!');
-            console.warn('⚠️ Ngrok больше не используется. Удалите WEB_APP_URL из переменных окружения.');
+            console.warn('⚠️ Ngrok больше не используется на Railway. Удалите WEB_APP_URL из переменных окружения.');
             console.warn('⚠️ Railway автоматически определит URL через RAILWAY_PUBLIC_DOMAIN');
             console.warn(`⚠️ Текущий URL: ${url}`);
             console.warn('⚠️ Убедитесь, что домен сгенерирован в Railway Settings → Networking');
@@ -133,11 +138,12 @@ const getWebAppUrl = () => {
 
 const WEB_APP_URL = getWebAppUrl();
 
-// Логируем предупреждение при старте, если используется ngrok
-if (WEB_APP_URL.includes('ngrok') || WEB_APP_URL.includes('ngrok-free.dev')) {
-    console.error('❌ ОШИБКА: Используется ngrok URL!');
+// Логируем предупреждение при старте, если используется ngrok (только для production)
+if ((WEB_APP_URL.includes('ngrok') || WEB_APP_URL.includes('ngrok-free.dev')) && process.env.NODE_ENV === 'production') {
+    console.error('❌ ОШИБКА: Используется ngrok URL в production!');
     console.error('❌ Удалите WEB_APP_URL из переменных окружения на Railway');
     console.error('❌ Railway автоматически определит правильный URL');
+    process.exit(1);
 }
 
 // Security middleware
