@@ -841,17 +841,30 @@ body.dark .product-image {
 }
 
 .nav-icon {
-    font-size: 1.3rem;
-    font-weight: 300;
-    line-height: 1;
-    color: var(--text-secondary);
-    display: inline-block;
+    width: 24px;
+    height: 24px;
+    display: block;
     transition: all 0.2s;
+    opacity: 0.6;
+    object-fit: contain;
+}
+
+.nav-icon-cart {
+    width: 24px;
+    height: 24px;
 }
 
 .nav-btn.active .nav-icon {
-    color: var(--accent);
-    font-weight: 400;
+    opacity: 1;
+}
+
+/* Для темной темы - инвертируем иконки для лучшей видимости */
+body.dark .nav-icon {
+    filter: invert(1) brightness(0.7);
+}
+
+body.dark .nav-btn.active .nav-icon {
+    filter: invert(1) brightness(1) saturate(1.3) hue-rotate(200deg);
 }
 
 .nav-label {
