@@ -85,8 +85,17 @@ app.use((req, res, next) => {
     next();
 });
 
-// Хостинг статических файлов
-app.use(express.static(path.join(__dirname, 'public')));
+// Хостинг статических файлов с отключением кеширования для разработки
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, path) => {
+        // Отключаем кеширование для HTML, CSS и JS файлов
+        if (path.endsWith('.html') || path.endsWith('.css') || path.endsWith('.js')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 app.use(express.json({ limit: '1mb' })); // Ограничение размера JSON
 
 // Проверка origin для защиты от CSRF
@@ -560,21 +569,24 @@ app.post('/api/promo/validate', (req, res) => {
 // API endpoint для получения списка товаров (с кешированием)
 let productsCache = null;
 let productsCacheTime = 0;
-const CACHE_DURATION = 60000; // 1 минута
+const CACHE_DURATION = 10000; // 10 секунд для разработки
 
 app.get('/api/products', (req, res) => {
     try {
         const now = Date.now();
+        const forceRefresh = req.query.refresh === 'true';
         
-        // Используем кеш если данные свежие
-        if (productsCache && (now - productsCacheTime) < CACHE_DURATION) {
-            res.setHeader('Cache-Control', 'public, max-age=60');
+        // Используем кеш если данные свежие и не требуется принудительное обновление
+        if (!forceRefresh && productsCache && (now - productsCacheTime) < CACHE_DURATION) {
+            res.setHeader('Cache-Control', 'public, max-age=10');
             return res.json(productsCache);
         }
         
-        const productsPath = path.join(__dirname, 'products.json');
+        const productsPath = path.join(__dirname, 'public', 'products.json');
+        console.log('Reading products from:', productsPath);
         const productsData = fs.readFileSync(productsPath, 'utf8');
         const products = JSON.parse(productsData);
+        console.log('Loaded products count:', products.length);
         
         // Валидация товаров
         if (!Array.isArray(products)) {
@@ -588,22 +600,32 @@ app.get('/api/products', (req, res) => {
             brand: String(p.brand || '').substring(0, 100),
             description: String(p.description || '').substring(0, 500),
             price: Number(p.price) || 0,
+            emoji: String(p.emoji || '🛍️'),
             image: String(p.image || ''),
             images: Array.isArray(p.images) ? p.images.slice(0, 10) : [],
             fullDescription: String(p.fullDescription || '').substring(0, 2000),
-            specs: Array.isArray(p.specs) ? p.specs.slice(0, 20) : []
+            specs: Array.isArray(p.specs) ? p.specs.slice(0, 20) : [],
+            dateAdded: String(p.dateAdded || new Date().toISOString())
         }));
         
         // Обновляем кеш
         productsCache = sanitizedProducts;
         productsCacheTime = now;
         
-        res.setHeader('Cache-Control', 'public, max-age=60');
+        console.log('Returning products count:', sanitizedProducts.length);
+        res.setHeader('Cache-Control', 'public, max-age=10');
         res.json(sanitizedProducts);
     } catch (error) {
         console.error('Ошибка чтения товаров:', error);
         res.status(500).json({ error: 'Ошибка загрузки товаров' });
     }
+});
+
+// Endpoint для очистки кеша товаров
+app.post('/api/products/clear-cache', (req, res) => {
+    productsCache = null;
+    productsCacheTime = 0;
+    res.json({ success: true, message: 'Кеш товаров очищен' });
 });
 
 // 404 handler
