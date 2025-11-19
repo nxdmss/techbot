@@ -1,0 +1,17 @@
+# Railway ignore file
+# Файлы, которые не нужно загружать на Railway
+
+# Локальные файлы разработки
+.DS_Store
+*.log
+server.log
+
+# База данных (будет создана на Railway)
+*.db
+*.db-journal
+shop.db*
+
+# Документация (опционально)
+QUILVEY_FIX.md
+DEPLOY.md
+

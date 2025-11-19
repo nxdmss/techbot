@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Telegram Web App with Bot Integration",
   "main": "bot.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "prestart": "npm rebuild better-sqlite3 || true",
     "start": "node bot.js",
@@ -14,7 +18,8 @@
     "telegram",
     "bot",
     "webapp",
-    "telegram-web-app"
+    "telegram-web-app",
+    "railway"
   ],
   "author": "",
   "license": "MIT",
