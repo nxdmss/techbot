@@ -1130,7 +1130,7 @@ function initPageControls() {
     checkoutBar.classList.remove('active');
 }
 
-// ESC key handler - возврат на шаг назад (не закрывает приложение)
+// ESC key handler - всегда возвращает назад (не закрывает приложение)
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
         // Всегда предотвращаем закрытие приложения
@@ -1169,7 +1169,7 @@ document.addEventListener('keydown', (e) => {
             return;
         }
         
-        // 4. Вернуться на каталог, если находимся на другой странице
+        // 4. Вернуться на каталог с любой страницы
         if (state.currentPage !== 'catalog') {
             const catalogBtn = document.querySelector('[data-page="catalog"]');
             if (catalogBtn) {
@@ -1177,7 +1177,7 @@ document.addEventListener('keydown', (e) => {
                 if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             }
         }
-        // Если уже на каталоге и ничего не открыто - ESC ничего не делает
+        // Если уже на каталоге и ничего не открыто - ESC предотвращает закрытие приложения, но ничего не делает
     }
 });
 
