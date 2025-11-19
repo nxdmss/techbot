@@ -97,6 +97,25 @@ const ADMIN_ID = process.env.ADMIN_ID;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Определение WEB_APP_URL для Railway
+// Railway автоматически предоставляет переменную RAILWAY_PUBLIC_DOMAIN
+// Если она есть, используем её, иначе берем из переменной окружения
+const getWebAppUrl = () => {
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    if (process.env.RAILWAY_STATIC_URL) {
+        return process.env.RAILWAY_STATIC_URL;
+    }
+    if (process.env.WEB_APP_URL) {
+        return process.env.WEB_APP_URL;
+    }
+    // Для локальной разработки
+    return `http://localhost:${PORT}`;
+};
+
+const WEB_APP_URL = getWebAppUrl();
+
 // Security middleware
 app.disable('x-powered-by'); // Скрываем информацию о Express
 
@@ -167,9 +186,10 @@ app.use(express.json({ limit: '1mb' })); // Ограничение размер�
 // Проверка origin для защиты от CSRF
 app.use((req, res, next) => {
     const allowedOrigins = [
-        process.env.WEB_APP_URL,
+        WEB_APP_URL,
         `http://localhost:${PORT}`,
-        'https://web.telegram.org'
+        'https://web.telegram.org',
+        'https://telegram.org'
     ];
     
     const origin = req.headers.origin;
@@ -195,7 +215,7 @@ bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const username = msg.from.first_name || 'Пользователь';
     
-    const webAppUrl = process.env.WEB_APP_URL || `http://localhost:${PORT}`;
+    const webAppUrl = WEB_APP_URL;
     
     // Проверяем, админ ли это
     if (chatId.toString() === ADMIN_ID) {
@@ -703,7 +723,10 @@ app.use((req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Бот запущен!`);
     console.log(`🌐 Веб-сервер работает на порту ${PORT}`);
-    console.log(`📱 Web App URL: ${process.env.WEB_APP_URL || `http://localhost:${PORT}`}`);
+    console.log(`📱 Web App URL: ${WEB_APP_URL}`);
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        console.log(`🚂 Railway Domain: ${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+    }
     console.log(`🔒 Безопасность: Rate limiting, CORS, Headers, Validation ✓`);
 });
 

@@ -93,15 +93,14 @@ git push -u origin main
 3. Нажмите **"Generate Domain"** или **"Custom Domain"**
 4. Скопируйте URL (например: `https://techbot-production.up.railway.app`)
 
-### 3.4. Добавьте WEB_APP_URL
+### 3.4. WEB_APP_URL (опционально)
 
+**Важно:** Railway автоматически определяет URL через переменную `RAILWAY_PUBLIC_DOMAIN`. 
+Код автоматически использует её, поэтому **не нужно** вручную добавлять `WEB_APP_URL`!
+
+Если хотите использовать свой домен:
 1. Вернитесь в **Variables**
-2. Добавьте новую переменную:
-   ```
-   WEB_APP_URL=https://ваш-railway-url.railway.app
-   ```
-   Замените на ваш реальный URL из шага 3.3
-
+2. Добавьте: `WEB_APP_URL=https://ваш-домен.com`
 3. Нажмите **"Add"**
 
 ### 3.5. Дождитесь деплоя
