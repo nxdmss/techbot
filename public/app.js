@@ -1130,9 +1130,13 @@ function initPageControls() {
     checkoutBar.classList.remove('active');
 }
 
-// ESC key handler - возврат на шаг назад
+// ESC key handler - возврат на шаг назад (не закрывает приложение)
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
+        // Всегда предотвращаем закрытие приложения
+        e.preventDefault();
+        e.stopPropagation();
+        
         // 1. Закрыть модальное окно товара, если открыто
         const modal = document.getElementById('productModal');
         if (modal && modal.classList.contains('active')) {
@@ -1173,6 +1177,7 @@ document.addEventListener('keydown', (e) => {
                 if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
             }
         }
+        // Если уже на каталоге и ничего не открыто - ESC ничего не делает
     }
 });
 
