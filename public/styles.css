@@ -240,10 +240,9 @@ body.dark .product-image {
 
 /* Sort Menu */
 .sort-menu {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -254,19 +253,23 @@ body.dark .product-image {
     overflow: hidden;
 }
 
-.sort-menu.active {
-    display: block;
-    animation: slideUp 0.2s ease-out;
+.brands-wrapper {
+    position: relative;
 }
 
-@keyframes slideUp {
+.sort-menu.active {
+    display: block;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
     from {
         opacity: 0;
-        transform: translateX(-50%) translateY(10px);
+        transform: translateY(-10px);
     }
     to {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 }
 
@@ -1051,7 +1054,7 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-info {
-    padding: 20px;
+    padding: 24px 20px;
     flex: 1;
 }
 
@@ -1060,9 +1063,11 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-size-label {
-    font-size: 15px;
-    color: #ffffff;
-    margin-bottom: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 14px;
+    letter-spacing: 0.01em;
 }
 
 .modal-sizes {
@@ -1093,18 +1098,20 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-info h2 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin-bottom: 12px;
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 16px;
     color: #ffffff;
-    line-height: 1.2;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
 }
 
 .modal-price {
-    font-size: 1.8rem;
-    font-weight: 700;
+    font-size: 1.75rem;
+    font-weight: 600;
     color: #ffffff;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
+    letter-spacing: -0.01em;
 }
 
 .modal-description-section {
@@ -1112,17 +1119,20 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-section-title {
-    font-size: 1rem;
+    font-size: 12px;
     font-weight: 600;
-    color: #ffffff;
-    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .modal-desc {
-    color: #ffffff;
-    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.65;
     font-size: 15px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+    letter-spacing: 0.01em;
 }
 
 .modal-desc.collapsed {
@@ -1159,10 +1169,12 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-specs h3 {
-    font-size: 1rem;
+    font-size: 12px;
     font-weight: 600;
-    margin-bottom: 12px;
-    color: #ffffff;
+    margin-bottom: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .modal-specs ul {
@@ -1170,10 +1182,12 @@ body.dark .modal-favorite-btn.active {
 }
 
 .modal-specs li {
-    padding: 8px 0;
-    border-bottom: 1px solid #2c2c2e;
-    color: #ffffff;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(44, 44, 46, 0.5);
+    color: rgba(255, 255, 255, 0.85);
     font-size: 15px;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
 }
 
 .modal-specs li:last-child {
@@ -1188,8 +1202,10 @@ body.dark .modal-favorite-btn.active {
 
 .modal-support-title {
     font-size: 15px;
-    color: #ffffff;
-    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
 }
 
 .modal-support-btn {
