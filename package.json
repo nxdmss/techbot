@@ -4,9 +4,11 @@
   "description": "Telegram Web App with Bot Integration",
   "main": "bot.js",
   "scripts": {
+    "prestart": "npm rebuild better-sqlite3 || true",
     "start": "node bot.js",
     "dev": "nodemon bot.js",
-    "postinstall": "npm rebuild better-sqlite3"
+    "postinstall": "npm rebuild better-sqlite3",
+    "rebuild": "npm rebuild better-sqlite3"
   },
   "keywords": [
     "telegram",
