@@ -14,16 +14,68 @@ if (!process.env.BOT_TOKEN) {
     process.exit(1);
 }
 
+// Проверка формата токена
+const tokenPattern = /^\d+:[A-Za-z0-9_-]+$/;
+if (!tokenPattern.test(process.env.BOT_TOKEN)) {
+    console.error('Ошибка: BOT_TOKEN имеет неверный формат!');
+    console.error('Токен должен быть в формате: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz');
+    process.exit(1);
+}
+
+// Логируем информацию о токене (безопасно - только первые 10 символов)
+console.log(`✅ Токен бота загружен: ${process.env.BOT_TOKEN.substring(0, 10)}...`);
+
 // Инициализация бота с улучшенными настройками
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
     polling: {
-        interval: 300,
-        autoStart: true,
+        interval: 1000, // Увеличиваем интервал до 1 секунды
+        autoStart: false, // Отключаем автозапуск, запустим вручную после проверки
         params: {
-            timeout: 10
+            timeout: 30 // Увеличиваем timeout до 30 секунд
+        }
+    },
+    request: {
+        agentOptions: {
+            keepAlive: true,
+            keepAliveMsecs: 10000
         }
     }
 });
+
+// Проверка валидности токена при старте
+async function verifyBotToken() {
+    try {
+        const me = await bot.getMe();
+        console.log(`✅ Бот успешно подключен: @${me.username} (${me.first_name})`);
+        return true;
+    } catch (error) {
+        console.error('❌ Ошибка проверки токена бота:', error.message);
+        if (error.response) {
+            console.error('Детали ошибки:', {
+                statusCode: error.response.statusCode,
+                body: error.response.body
+            });
+        }
+        return false;
+    }
+}
+
+// Запуск бота после проверки токена
+(async () => {
+    const isValid = await verifyBotToken();
+    if (!isValid) {
+        console.error('❌ Не удалось проверить токен бота. Проверьте BOT_TOKEN в переменных окружения.');
+        console.error('💡 Убедитесь, что токен правильный и бот не был удален/заблокирован.');
+        // Не останавливаем процесс, чтобы веб-сервер продолжал работать
+    } else {
+        // Запускаем polling только если токен валиден
+        bot.startPolling().then(() => {
+            console.log('✅ Polling запущен успешно');
+        }).catch((error) => {
+            console.error('❌ Ошибка запуска polling:', error.message);
+        });
+    }
+})();
 
 const ADMIN_ID = process.env.ADMIN_ID;
 
@@ -642,12 +694,72 @@ app.listen(PORT, () => {
 });
 
 // Обработка ошибок с логированием
+// Обработка ошибок polling с автоматическим переподключением
+let pollingErrorCount = 0;
+const MAX_POLLING_ERRORS = 10;
+let isRestarting = false;
+
 bot.on('polling_error', (error) => {
-    console.error(`[${new Date().toISOString()}] Ошибка polling:`, error.code || error.message);
+    pollingErrorCount++;
+    const errorCode = error.code || error.message;
+    const errorDetails = error.response?.body || error.message;
+    
+    console.error(`[${new Date().toISOString()}] Ошибка polling (${pollingErrorCount}/${MAX_POLLING_ERRORS}):`, errorCode);
+    
+    // Логируем детали ошибки
+    if (error.response) {
+        console.error('Детали ошибки:', {
+            statusCode: error.response.statusCode,
+            body: error.response.body,
+            headers: error.response.headers
+        });
+    }
+    
+    // Если ошибок слишком много, пытаемся перезапустить polling
+    if (pollingErrorCount >= MAX_POLLING_ERRORS && !isRestarting) {
+        isRestarting = true;
+        console.log(`[${new Date().toISOString()}] Слишком много ошибок. Перезапуск polling...`);
+        
+        setTimeout(() => {
+            bot.stopPolling().then(() => {
+                console.log('Polling остановлен. Перезапуск через 5 секунд...');
+                setTimeout(() => {
+                    bot.startPolling().then(() => {
+                        console.log('Polling перезапущен успешно');
+                        pollingErrorCount = 0;
+                        isRestarting = false;
+                    }).catch((err) => {
+                        console.error('Ошибка при перезапуске polling:', err.message);
+                        isRestarting = false;
+                    });
+                }, 5000);
+            }).catch((err) => {
+                console.error('Ошибка при остановке polling:', err.message);
+                isRestarting = false;
+            });
+        }, 10000);
+    }
+    
+    // Сбрасываем счетчик при успешных запросах (через некоторое время)
+    if (pollingErrorCount > 0) {
+        setTimeout(() => {
+            if (pollingErrorCount > 0) {
+                pollingErrorCount = Math.max(0, pollingErrorCount - 1);
+            }
+        }, 60000); // Уменьшаем счетчик каждую минуту
+    }
 });
 
 bot.on('error', (error) => {
     console.error(`[${new Date().toISOString()}] Общая ошибка бота:`, error.message);
+    if (error.stack) {
+        console.error('Stack trace:', error.stack);
+    }
+});
+
+// Обработка успешного подключения
+bot.on('webhook_error', (error) => {
+    console.error(`[${new Date().toISOString()}] Ошибка webhook:`, error.message);
 });
 
 // Обработка необработанных отклонений промисов
