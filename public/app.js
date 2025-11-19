@@ -46,30 +46,34 @@ function renderBrands() {
     const brands = [...new Set(state.products.map(p => p.brand))].sort();
     const brandsEl = document.getElementById('brands');
     
-    // Очищаем все кнопки брендов кроме "Все"
-    const allBtn = brandsEl.querySelector('[data-brand="all"]');
+    // Очищаем все кнопки
     brandsEl.innerHTML = '';
-    if (allBtn) {
-        brandsEl.appendChild(allBtn);
-    } else {
-        const allBtnNew = document.createElement('button');
-        allBtnNew.className = 'brand-chip active';
-        allBtnNew.dataset.brand = 'all';
-        allBtnNew.textContent = 'Все';
-        allBtnNew.addEventListener('click', () => {
-            state.currentBrand = 'all';
-            document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
-            allBtnNew.classList.add('active');
-            renderProducts();
-        });
-        brandsEl.appendChild(allBtnNew);
-    }
     
+    // Создаем кнопку "Все"
+    const allBtn = document.createElement('button');
+    allBtn.className = 'brand-chip';
+    allBtn.dataset.brand = 'all';
+    allBtn.textContent = 'Все';
+    if (state.currentBrand === 'all') {
+        allBtn.classList.add('active');
+    }
+    allBtn.addEventListener('click', () => {
+        state.currentBrand = 'all';
+        document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        renderProducts();
+    });
+    brandsEl.appendChild(allBtn);
+    
+    // Создаем кнопки брендов
     brands.forEach(brand => {
         const btn = document.createElement('button');
         btn.className = 'brand-chip';
         btn.textContent = brand;
         btn.dataset.brand = brand;
+        if (state.currentBrand === brand) {
+            btn.classList.add('active');
+        }
         btn.addEventListener('click', () => {
             state.currentBrand = brand;
             document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
@@ -1181,7 +1185,16 @@ document.addEventListener('keydown', (e) => {
             return;
         }
         
-        // 4. Вернуться на каталог с любой страницы
+        // 4. Сбросить фильтр бренда на "Все", если выбран другой бренд
+        if (state.currentPage === 'catalog' && state.currentBrand !== 'all') {
+            state.currentBrand = 'all';
+            renderBrands();
+            renderProducts();
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            return;
+        }
+        
+        // 5. Вернуться на каталог с любой страницы
         if (state.currentPage !== 'catalog') {
             navigateToPage('catalog');
         }
