@@ -68,11 +68,25 @@ async function verifyBotToken() {
         console.error('💡 Убедитесь, что токен правильный и бот не был удален/заблокирован.');
         // Не останавливаем процесс, чтобы веб-сервер продолжал работать
     } else {
+        // Останавливаем любой существующий polling перед запуском нового
+        try {
+            await bot.stopPolling();
+            console.log('🛑 Остановлен предыдущий polling (если был)');
+            // Ждем немного перед запуском нового
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (err) {
+            // Игнорируем ошибки остановки (polling может быть не запущен)
+        }
+        
         // Запускаем polling только если токен валиден
         bot.startPolling().then(() => {
             console.log('✅ Polling запущен успешно');
         }).catch((error) => {
             console.error('❌ Ошибка запуска polling:', error.message);
+            if (error.response?.body?.error_code === 409) {
+                console.error('⚠️ Конфликт: другой экземпляр бота уже использует этот токен');
+                console.error('💡 Убедитесь, что бот не запущен локально или на другом сервере');
+            }
         });
     }
 })();
@@ -700,18 +714,30 @@ const MAX_POLLING_ERRORS = 10;
 let isRestarting = false;
 
 bot.on('polling_error', (error) => {
-    pollingErrorCount++;
     const errorCode = error.code || error.message;
-    const errorDetails = error.response?.body || error.message;
+    const statusCode = error.response?.statusCode;
+    const errorBody = error.response?.body;
     
+    // Обработка ошибки 409 - конфликт с другим экземпляром бота
+    if (statusCode === 409 || (errorBody && errorBody.error_code === 409)) {
+        console.warn(`[${new Date().toISOString()}] ⚠️ Конфликт: другой экземпляр бота уже запущен`);
+        console.warn('💡 Решение: Убедитесь, что бот не запущен локально или на другом сервере');
+        console.warn('💡 Если это Railway, проверьте, что не запущено несколько инстансов');
+        
+        // Не увеличиваем счетчик для ошибки 409, так как это не критично
+        // Просто ждем, пока другой экземпляр не остановится
+        return;
+    }
+    
+    // Для других ошибок увеличиваем счетчик
+    pollingErrorCount++;
     console.error(`[${new Date().toISOString()}] Ошибка polling (${pollingErrorCount}/${MAX_POLLING_ERRORS}):`, errorCode);
     
     // Логируем детали ошибки
     if (error.response) {
         console.error('Детали ошибки:', {
             statusCode: error.response.statusCode,
-            body: error.response.body,
-            headers: error.response.headers
+            body: error.response.body
         });
     }
     
