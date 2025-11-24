@@ -250,14 +250,15 @@ body.dark .product-image {
 /* Sort Menu */
 .sort-menu {
     position: absolute;
-    top: 0;                     /* Выравнивание по верху кнопки */
+    top: -8px;                  /* Слегка вверх от кнопки */
     right: 100%;                /* Открывается слева от кнопки */
     margin-right: 8px;          /* Отступ от кнопки */
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    min-width: 220px;           /* Ширина для стрелок */
+    min-width: 180px;           /* Уменьшенная ширина */
+    max-width: 180px;           /* Фиксированная ширина */
     z-index: 150;
     overflow: hidden;
     transform-origin: top right; /* Точка трансформации */
@@ -288,10 +289,10 @@ body.dark .product-image {
     justify-content: space-between;
     align-items: center;
     color: var(--text);
-    font-size: 15px;
+    font-size: 14px;            /* Немного уменьшенный шрифт */
     border-bottom: 1px solid var(--border);
     transition: background 0.2s;
-    min-height: 48px;
+    min-height: 42px;           /* Уменьшенная высота */
 }
 
 .sort-menu-item:last-child {
@@ -300,7 +301,7 @@ body.dark .product-image {
 
 .sort-menu-item > span:first-child {
     flex: 1;
-    padding: 14px 16px;
+    padding: 10px 12px;         /* Уменьшенные отступы */
 }
 
 .sort-menu-item:active {
@@ -313,18 +314,18 @@ body.dark .product-image {
 }
 
 .sort-direction-btn {
-    padding: 8px 16px;
+    padding: 8px 12px;           /* Уменьшенные отступы */
     border: none;
     background: transparent;
     cursor: pointer;
     color: var(--text);
-    font-size: 18px;
+    font-size: 16px;            /* Немного меньший размер стрелки */
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
     border-left: 1px solid var(--border);
-    min-width: 50px;
+    min-width: 44px;            /* Уменьшенная ширина */
     flex-shrink: 0;
 }
 
