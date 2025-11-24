@@ -244,25 +244,25 @@ body.dark .product-image {
 .sort-toggle-wrapper {
     position: relative;
     display: inline-flex;
-    align-items: flex-start;
+    align-items: center;
 }
 
 /* Sort Menu */
 .sort-menu {
     position: absolute;
-    bottom: 100%;              /* Открывается вверх от кнопки */
-    right: 0;
-    margin-bottom: 8px;        /* Отступ от кнопки */
+    top: 0;                     /* Выравнивание по верху кнопки */
+    left: 100%;                 /* Открывается справа от кнопки */
+    margin-left: 8px;           /* Отступ от кнопки */
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    min-width: 220px;          /* Увеличил ширину для стрелок */
+    min-width: 220px;           /* Ширина для стрелок */
     z-index: 150;
     overflow: hidden;
-    transform-origin: bottom right;
+    transform-origin: top left;  /* Точка трансформации */
     opacity: 0;
-    transform: scale(0.3) translateY(10px);
+    transform: scale(0.3) translateX(-10px);
     pointer-events: none;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -273,7 +273,7 @@ body.dark .product-image {
 
 .sort-menu.active {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1) translateX(0);
     pointer-events: auto;
 }
 
