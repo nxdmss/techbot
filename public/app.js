@@ -53,8 +53,9 @@ async function loadProducts() {
     }
     renderBrands();
     renderProducts();
-    updateSortArrows();
     updateUI();
+    // Обновляем стрелки после загрузки товаров
+    updateSortArrows();
 }
 
 /**
@@ -1091,19 +1092,23 @@ document.addEventListener('click', (e) => {
 
 /**
  * Обновление отображения стрелок сортировки
+ * Показывает текущее состояние сортировки для всех опций
  */
 function updateSortArrows() {
     document.querySelectorAll('.sort-menu-item').forEach(item => {
         const sort = item.dataset.sort;
         const arrow = item.querySelector('.sort-arrow');
+        if (!arrow) return;
+        
         const isActive = state.currentSort === sort;
         
         if (isActive) {
+            // Для активной опции показываем текущее направление
             item.classList.add('active');
             arrow.textContent = state.sortDirection === 'asc' ? '↑' : '↓';
         } else {
+            // Для неактивных показываем дефолтное направление
             item.classList.remove('active');
-            // Показываем дефолтное направление для неактивных
             if (sort === 'date') {
                 arrow.textContent = '↓'; // По умолчанию новые сверху
             } else {
@@ -1114,57 +1119,63 @@ function updateSortArrows() {
 }
 
 /**
- * Обработка выбора поля сортировки
+ * Инициализация обработчиков сортировки
+ * Вызывается после загрузки DOM
  */
-document.querySelectorAll('.sort-menu-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-        // Игнорируем клик по кнопке направления
-        if (e.target.closest('.sort-direction-btn')) return;
-        
-        const sort = item.dataset.sort;
-        
-        // Если уже выбрано это поле, переключаем направление
-        if (state.currentSort === sort) {
-            state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            // Иначе выбираем новое поле с дефолтным направлением
-            state.currentSort = sort;
-            // Для даты по умолчанию desc (новые сверху), для остальных asc
-            state.sortDirection = sort === 'date' ? 'desc' : 'asc';
-        }
-        
-        updateSortArrows();
-        renderProducts();
-        if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+function initSortHandlers() {
+    /**
+     * Обработка выбора поля сортировки
+     */
+    document.querySelectorAll('.sort-menu-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            // Игнорируем клик по кнопке направления
+            if (e.target.closest('.sort-direction-btn')) return;
+            
+            const sort = item.dataset.sort;
+            
+            // Если уже выбрано это поле, переключаем направление
+            if (state.currentSort === sort) {
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                // Иначе выбираем новое поле с дефолтным направлением
+                state.currentSort = sort;
+                // Для даты по умолчанию desc (новые сверху), для остальных asc
+                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+            }
+            
+            updateSortArrows();
+            renderProducts();
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        });
     });
-});
 
-/**
- * Обработка кнопок изменения направления сортировки
- */
-document.querySelectorAll('.sort-direction-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Предотвращаем срабатывание клика на родителе
-        
-        const sort = btn.dataset.sort;
-        
-        // Если это активное поле, переключаем направление
-        if (state.currentSort === sort) {
-            state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            // Иначе выбираем это поле
-            state.currentSort = sort;
-            state.sortDirection = sort === 'date' ? 'desc' : 'asc';
-        }
-        
-        updateSortArrows();
-        renderProducts();
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    /**
+     * Обработка кнопок изменения направления сортировки
+     */
+    document.querySelectorAll('.sort-direction-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Предотвращаем срабатывание клика на родителе
+            
+            const sort = btn.dataset.sort;
+            
+            // Если это активное поле, переключаем направление
+            if (state.currentSort === sort) {
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                // Иначе выбираем это поле
+                state.currentSort = sort;
+                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+            }
+            
+            updateSortArrows();
+            renderProducts();
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        });
     });
-});
-
-// Инициализация стрелок при загрузке
-updateSortArrows();
+    
+    // Инициализация стрелок при загрузке
+    updateSortArrows();
+}
 
 /**
  * Оформление заказа
@@ -1444,11 +1455,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const catalogNavBtn = document.querySelector('[data-page="catalog"]');
     if (catalogNavBtn) catalogNavBtn.classList.add('active');
     
+    // Инициализация обработчиков сортировки
+    initSortHandlers();
+    
     loadProducts();
     loadProfile();
-    
-    // Инициализация стрелок сортировки после загрузки DOM
-    setTimeout(() => {
-        updateSortArrows();
-    }, 100);
 });
