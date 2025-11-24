@@ -251,8 +251,8 @@ body.dark .product-image {
 .sort-menu {
     position: absolute;
     top: 0;                     /* Выравнивание по верху кнопки */
-    left: 100%;                 /* Открывается справа от кнопки */
-    margin-left: 8px;           /* Отступ от кнопки */
+    right: 100%;                /* Открывается слева от кнопки */
+    margin-right: 8px;          /* Отступ от кнопки */
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -260,9 +260,9 @@ body.dark .product-image {
     min-width: 220px;           /* Ширина для стрелок */
     z-index: 150;
     overflow: hidden;
-    transform-origin: top left;  /* Точка трансформации */
+    transform-origin: top right; /* Точка трансформации */
     opacity: 0;
-    transform: scale(0.3) translateX(-10px);
+    transform: scale(0.3) translateX(10px);
     pointer-events: none;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
