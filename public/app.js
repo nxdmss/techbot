@@ -181,10 +181,7 @@ function renderProducts() {
                     `).join('')}
                 </div>
                 ${hasMultipleImages ? `<div class="product-image-indicators" data-product-id="${product.id}">
-                    <div class="product-image-counter">1/${allImages.length}</div>
-                    <div class="product-image-dots">
-                        ${allImages.map((_, idx) => `<span class="product-image-dot ${idx === 0 ? 'active' : ''}"></span>`).join('')}
-                    </div>
+                    ${allImages.map((_, idx) => `<span class="product-image-dot ${idx === 0 ? 'active' : ''}"></span>`).join('')}
                 </div>` : ''}
                </div>`
             : `<div class="product-emoji">${product.emoji || '🛍️'}</div>`;
@@ -675,19 +672,12 @@ function updateImageIndicators() {
     }
     
     indicatorsEl.style.display = 'flex';
-    const currentNum = modalState.currentImageIndex + 1;
-    const totalNum = modalState.images.length;
     
-    // Показываем номер текущего изображения и точки
-    indicatorsEl.innerHTML = `
-        <div class="modal-image-counter">${currentNum}/${totalNum}</div>
-        <div class="modal-image-dots">
-            ${modalState.images.map((_, index) => `
-                <button class="modal-image-indicator ${index === modalState.currentImageIndex ? 'active' : ''}" 
-                        onclick="goToImage(${index})"></button>
-            `).join('')}
-        </div>
-    `;
+    // Показываем только точки
+    indicatorsEl.innerHTML = modalState.images.map((_, index) => `
+        <button class="modal-image-indicator ${index === modalState.currentImageIndex ? 'active' : ''}" 
+                onclick="goToImage(${index})"></button>
+    `).join('');
 }
 
 /**
@@ -803,20 +793,24 @@ function setupSwipeHandlers() {
         
         let targetIndex = modalState.currentImageIndex;
         
-        // Check velocity-based swipe
+        // Check velocity-based swipe (циклический)
         if (Math.abs(velocity) > velocityThreshold) {
-            if (velocity < 0 && modalState.currentImageIndex < modalState.images.length - 1) {
-                targetIndex = modalState.currentImageIndex + 1;
-            } else if (velocity > 0 && modalState.currentImageIndex > 0) {
-                targetIndex = modalState.currentImageIndex - 1;
+            if (velocity < 0) {
+                // Swipe left - next image (циклически)
+                targetIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
+            } else if (velocity > 0) {
+                // Swipe right - previous image (циклически)
+                targetIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
             }
         } 
-        // Check distance-based swipe
+        // Check distance-based swipe (циклический)
         else if (absDeltaX > swipeThreshold) {
-            if (deltaX < 0 && modalState.currentImageIndex < modalState.images.length - 1) {
-                targetIndex = modalState.currentImageIndex + 1;
-            } else if (deltaX > 0 && modalState.currentImageIndex > 0) {
-                targetIndex = modalState.currentImageIndex - 1;
+            if (deltaX < 0) {
+                // Swipe left - next image (циклически)
+                targetIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
+            } else if (deltaX > 0) {
+                // Swipe right - previous image (циклически)
+                targetIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
             }
         }
         
@@ -941,20 +935,20 @@ function setupModalImageClickHandlers() {
     leftClickZone.className = 'modal-image-left-zone';
     leftClickZone.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (modalState.currentImageIndex > 0) {
-            goToImage(modalState.currentImageIndex - 1);
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        }
+        // Циклический переход: перед первым → последнее
+        const prevIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
+        goToImage(prevIndex);
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     });
     
     const rightClickZone = document.createElement('div');
     rightClickZone.className = 'modal-image-right-zone';
     rightClickZone.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (modalState.currentImageIndex < modalState.images.length - 1) {
-            goToImage(modalState.currentImageIndex + 1);
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        }
+        // Циклический переход: после последнего → первое
+        const nextIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
+        goToImage(nextIndex);
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     });
     
     container.appendChild(leftClickZone);
@@ -1555,7 +1549,6 @@ function initProductImageSwipes() {
         
         const slides = gallery.querySelectorAll('.product-image-slide');
         const indicators = gallery.querySelector('.product-image-indicators');
-        const counter = indicators?.querySelector('.product-image-counter');
         const dots = indicators?.querySelectorAll('.product-image-dot');
         
         let currentIndex = 0;
@@ -1584,15 +1577,15 @@ function initProductImageSwipes() {
             const swipeThreshold = 50;
             
             if (Math.abs(swipeDistance) > swipeThreshold) {
-                if (swipeDistance > 0 && currentIndex < allImages.length - 1) {
-                    // Swipe left - next image
-                    currentIndex++;
-                } else if (swipeDistance < 0 && currentIndex > 0) {
-                    // Swipe right - previous image
-                    currentIndex--;
+                if (swipeDistance > 0) {
+                    // Swipe left - next image (циклически)
+                    currentIndex = (currentIndex + 1) % allImages.length;
+                } else if (swipeDistance < 0) {
+                    // Swipe right - previous image (циклически)
+                    currentIndex = (currentIndex - 1 + allImages.length) % allImages.length;
                 }
                 
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
                 if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             }
         }, { passive: true });
@@ -1616,13 +1609,15 @@ function initProductImageSwipes() {
             const swipeThreshold = 50;
             
             if (Math.abs(swipeDistance) > swipeThreshold) {
-                if (swipeDistance > 0 && currentIndex < allImages.length - 1) {
-                    currentIndex++;
-                } else if (swipeDistance < 0 && currentIndex > 0) {
-                    currentIndex--;
+                if (swipeDistance > 0) {
+                    // Swipe left - next image (циклически)
+                    currentIndex = (currentIndex + 1) % allImages.length;
+                } else if (swipeDistance < 0) {
+                    // Swipe right - previous image (циклически)
+                    currentIndex = (currentIndex - 1 + allImages.length) % allImages.length;
                 }
                 
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
                 if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             }
         });
@@ -1634,7 +1629,7 @@ function initProductImageSwipes() {
             e.stopPropagation();
             if (currentIndex > 0) {
                 currentIndex--;
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
                 if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             }
         });
@@ -1643,11 +1638,10 @@ function initProductImageSwipes() {
         rightZone.className = 'product-image-right-zone';
         rightZone.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (currentIndex < allImages.length - 1) {
-                currentIndex++;
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            }
+            // Циклический переход: после последнего → первое
+            currentIndex = (currentIndex + 1) % allImages.length;
+            updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         });
         
         gallery.appendChild(leftZone);
@@ -1665,14 +1659,11 @@ function updateProductGallery(gallery, index, total, slides, counter, dots) {
         slide.style.transform = `translateX(${(i - index) * 100}%)`;
     });
     
-    // Обновляем счетчик
-    if (counter) {
-        counter.textContent = `${index + 1}/${total}`;
-    }
-    
-    // Обновляем точки
-    if (dots) {
-        dots.forEach((dot, i) => {
+    // Обновляем точки (счетчик убран)
+    const indicators = gallery.querySelector('.product-image-indicators');
+    if (indicators) {
+        const allDots = indicators.querySelectorAll('.product-image-dot');
+        allDots.forEach((dot, i) => {
             dot.classList.toggle('active', i === index);
         });
     }
