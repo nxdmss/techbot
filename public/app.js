@@ -23,9 +23,15 @@ const state = {
     favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
     currentPage: 'catalog',
     currentBrand: 'all',
-    currentSort: 'price',
+    currentSort: 'price',        // Поле сортировки: price, date, name
+    sortDirection: 'asc',        // Направление: asc (↑) или desc (↓)
     searchQuery: ''
 };
+
+// Инициализация направления сортировки по умолчанию
+if (state.currentSort === 'date') {
+    state.sortDirection = 'desc'; // Для даты по умолчанию новые сверху
+}
 
 /**
  * Загрузка товаров с сервера
@@ -47,6 +53,7 @@ async function loadProducts() {
     }
     renderBrands();
     renderProducts();
+    updateSortArrows();
     updateUI();
 }
 
@@ -121,10 +128,18 @@ function getFilteredProducts() {
     
     // Sort
     filtered.sort((a, b) => {
-        if (state.currentSort === 'price') return a.price - b.price;
-        if (state.currentSort === 'date') return new Date(b.dateAdded) - new Date(a.dateAdded);
-        if (state.currentSort === 'name') return a.name.localeCompare(b.name);
-        return 0;
+        let result = 0;
+        
+        if (state.currentSort === 'price') {
+            result = a.price - b.price;
+        } else if (state.currentSort === 'date') {
+            result = new Date(a.dateAdded) - new Date(b.dateAdded);
+        } else if (state.currentSort === 'name') {
+            result = a.name.localeCompare(b.name);
+        }
+        
+        // Применяем направление сортировки
+        return state.sortDirection === 'asc' ? result : -result;
     });
     
     return filtered;
@@ -1074,23 +1089,82 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Sort menu items
-document.querySelectorAll('.sort-menu-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const sort = btn.dataset.sort;
-        state.currentSort = sort;
+/**
+ * Обновление отображения стрелок сортировки
+ */
+function updateSortArrows() {
+    document.querySelectorAll('.sort-menu-item').forEach(item => {
+        const sort = item.dataset.sort;
+        const arrow = item.querySelector('.sort-arrow');
+        const isActive = state.currentSort === sort;
         
-        // Update UI
-        document.querySelectorAll('.sort-menu-item').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        if (isActive) {
+            item.classList.add('active');
+            arrow.textContent = state.sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            item.classList.remove('active');
+            // Показываем дефолтное направление для неактивных
+            if (sort === 'date') {
+                arrow.textContent = '↓'; // По умолчанию новые сверху
+            } else {
+                arrow.textContent = '↑'; // По умолчанию по возрастанию
+            }
+        }
+    });
+}
+
+/**
+ * Обработка выбора поля сортировки
+ */
+document.querySelectorAll('.sort-menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+        // Игнорируем клик по кнопке направления
+        if (e.target.closest('.sort-direction-btn')) return;
         
-        // Close menu
-        sortMenu.classList.remove('active');
+        const sort = item.dataset.sort;
         
+        // Если уже выбрано это поле, переключаем направление
+        if (state.currentSort === sort) {
+            state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            // Иначе выбираем новое поле с дефолтным направлением
+            state.currentSort = sort;
+            // Для даты по умолчанию desc (новые сверху), для остальных asc
+            state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+        }
+        
+        updateSortArrows();
         renderProducts();
         if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
     });
 });
+
+/**
+ * Обработка кнопок изменения направления сортировки
+ */
+document.querySelectorAll('.sort-direction-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Предотвращаем срабатывание клика на родителе
+        
+        const sort = btn.dataset.sort;
+        
+        // Если это активное поле, переключаем направление
+        if (state.currentSort === sort) {
+            state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            // Иначе выбираем это поле
+            state.currentSort = sort;
+            state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+        }
+        
+        updateSortArrows();
+        renderProducts();
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    });
+});
+
+// Инициализация стрелок при загрузке
+updateSortArrows();
 
 /**
  * Оформление заказа
@@ -1372,4 +1446,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     loadProducts();
     loadProfile();
+    
+    // Инициализация стрелок сортировки после загрузки DOM
+    setTimeout(() => {
+        updateSortArrows();
+    }, 100);
 });

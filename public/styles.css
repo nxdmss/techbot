@@ -278,7 +278,7 @@ body.dark .product-image {
 
 .sort-menu-item {
     width: 100%;
-    padding: 14px 16px;
+    padding: 0;
     border: none;
     background: var(--bg);
     text-align: left;
@@ -290,10 +290,16 @@ body.dark .product-image {
     font-size: 15px;
     border-bottom: 1px solid var(--border);
     transition: background 0.2s;
+    min-height: 48px;
 }
 
 .sort-menu-item:last-child {
     border-bottom: none;
+}
+
+.sort-menu-item > span:first-child {
+    flex: 1;
+    padding: 14px 16px;
 }
 
 .sort-menu-item:active {
@@ -305,8 +311,38 @@ body.dark .product-image {
     font-weight: 600;
 }
 
+.sort-direction-btn {
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    border-left: 1px solid var(--border);
+    min-width: 44px;
+}
+
+.sort-direction-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sort-direction-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(0.95);
+}
+
+.sort-menu-item.active .sort-direction-btn {
+    color: var(--accent);
+}
+
 .sort-arrow {
-    font-size: 1rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    transition: transform 0.2s;
     color: var(--text-secondary);
 }
 
