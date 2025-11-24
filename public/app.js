@@ -1,14 +1,22 @@
-// Telegram WebApp Init
-const tg = window.Telegram.WebApp;
-tg.ready();
-tg.expand();
+/**
+ * bitter8 Web App
+ * Фронтенд приложение для Telegram Web App
+ * Управление каталогом, корзиной, избранным
+ */
 
-// Apply Telegram theme
+// ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP ====================
+
+const tg = window.Telegram.WebApp;
+tg.ready();   // Готовность Web App
+tg.expand();  // Развернуть на весь экран
+
+// Применение темы Telegram (темная/светлая)
 if (tg.colorScheme === 'dark') {
     document.body.classList.add('dark');
 }
 
-// State
+// ==================== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ====================
+
 const state = {
     products: [],
     cart: JSON.parse(localStorage.getItem('cart') || '[]'),
@@ -19,7 +27,11 @@ const state = {
     searchQuery: ''
 };
 
-// Load products
+/**
+ * Загрузка товаров с сервера
+ * Загружает список товаров из /api/products
+ * При ошибке использует fallback данные
+ */
 async function loadProducts() {
     try {
         const res = await fetch('/api/products?refresh=true');
@@ -28,20 +40,20 @@ async function loadProducts() {
         console.log('Loaded products:', state.products.length, state.products);
     } catch (error) {
         console.error('Error loading products:', error);
-        // Fallback products
-        state.products = [
-            { id: 1, name: "Серая рубашка", brand: "воплоти", description: "Рубашка серая рабочая", price: 14990, emoji: "👕", image: "/images/rgrey.jpg", images: ["/images/rgrey1.jpg"], fullDescription: "Плотная рабочая рубашка из 100% хлопка", specs: ["Материал: хлопок", "Крой: рабочий", "Цвет: серый"], dateAdded: "2024-11-10T09:00:00Z" },
-            { id: 2, name: "Черная рубашка", brand: "воплоти", description: "Рубашка черная рабочая", price: 14990, emoji: "👕", image: "/images/rblck.jpg", images: ["/images/rblck1.jpg"], fullDescription: "Плотная рабочая рубашка из 100% хлопка", specs: ["Материал: хлопок", "Крой: рабочий", "Цвет: черный"], dateAdded: "2024-11-12T09:00:00Z" },
-            { id: 3, name: "Штаны серые", brand: "воплоти", description: "Штаны серые рабочие", price: 18990, emoji: "👖", image: "/images/sgrey.jpg", images: ["/images/sgrey1.jpg"], fullDescription: "Штаны серые рабочие из 100% хлопка, зауженные к низу", specs: ["Материал: хлопок", "Крой: зауженный", "Цвет: серый"], dateAdded: "2024-11-13T09:00:00Z" },
-            { id: 4, name: "Штаны черные", brand: "воплоти", description: "Штаны черные рабочие", price: 18990, emoji: "👖", image: "/images/sblck.jpg", images: ["/images/sblck1.jpg"], fullDescription: "Штаны черные рабочие из 100% хлопка, зауженные к низу", specs: ["Материал: хлопок", "Крой: зауженный", "Цвет: черный"], dateAdded: "2024-11-14T09:00:00Z" }
-        ];
+        // Показываем сообщение об ошибке, но не используем fallback
+        // Товары должны загружаться из products.json
+        state.products = [];
+        console.warn('Не удалось загрузить товары. Проверьте products.json и перезагрузите страницу.');
     }
     renderBrands();
     renderProducts();
     updateUI();
 }
 
-// Render brands
+/**
+ * Рендеринг фильтров брендов
+ * Создает кнопки для каждого бренда + кнопку "Все"
+ */
 function renderBrands() {
     const brands = [...new Set(state.products.map(p => p.brand))].sort();
     const brandsEl = document.getElementById('brands');
@@ -58,11 +70,11 @@ function renderBrands() {
         allBtn.classList.add('active');
     }
     allBtn.addEventListener('click', () => {
-        state.currentBrand = 'all';
-        document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
+            state.currentBrand = 'all';
+            document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
         allBtn.classList.add('active');
-        renderProducts();
-    });
+            renderProducts();
+        });
     brandsEl.appendChild(allBtn);
     
     // Создаем кнопки брендов
@@ -84,7 +96,11 @@ function renderBrands() {
     });
 }
 
-// Filter and sort products
+/**
+ * Фильтрация и сортировка товаров
+ * Применяет фильтры по бренду и поиску, затем сортирует
+ * @returns {Array} Отфильтрованный и отсортированный массив товаров
+ */
 function getFilteredProducts() {
     let filtered = [...state.products];
     
@@ -114,7 +130,10 @@ function getFilteredProducts() {
     return filtered;
 }
 
-// Render products
+/**
+ * Рендеринг списка товаров
+ * Отображает товары в сетке или показывает пустое состояние
+ */
 function renderProducts() {
     const filtered = getFilteredProducts();
     const grid = document.getElementById('products');
@@ -151,7 +170,10 @@ function renderProducts() {
     }).join('');
 }
 
-// Render favorites
+/**
+ * Рендеринг избранных товаров
+ * Показывает товары из favorites или пустое состояние с уточкой
+ */
 function renderFavorites() {
     const favoriteProducts = state.products.filter(p => state.favorites.includes(p.id));
     const grid = document.getElementById('favoriteProducts');
@@ -193,7 +215,11 @@ function renderFavorites() {
     }).join('');
 }
 
-// Функция для отображения анимированной уточки из Telegram
+/**
+ * Отображение анимированной уточки из Telegram
+ * Пытается загрузить стикер, при ошибке показывает эмодзи
+ * @param {HTMLElement} container - Контейнер для уточки
+ */
 function showTelegramDuck(container) {
     // Популярная уточка из Telegram - используем несколько вариантов для надежности
     const stickerUrls = [
@@ -230,7 +256,11 @@ function showTelegramDuck(container) {
     container.appendChild(img);
 }
 
-// Render cart
+/**
+ * Рендеринг корзины
+ * Отображает товары в корзине, подсчитывает итоговую сумму
+ * Показывает пустое состояние с уточкой если корзина пуста
+ */
 function renderCart() {
     const cartItems = document.getElementById('cartItems');
     const empty = document.getElementById('emptyCart');
@@ -299,7 +329,13 @@ function renderCart() {
     document.getElementById('checkoutPrice').textContent = formatPrice(total);
 }
 
-// Add to cart
+/**
+ * Добавить товар в корзину
+ * Поддерживает размеры для одежды
+ * Если товар уже есть, увеличивает количество
+ * @param {number} productId - ID товара
+ * @param {string|null} size - Размер (для одежды)
+ */
 function addToCart(productId, size = null) {
     const product = state.products.find(p => p.id === productId);
     if (!product) return;
@@ -327,7 +363,11 @@ function addToCart(productId, size = null) {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 }
 
-// Change quantity
+/**
+ * Изменить количество товара в корзине
+ * @param {number} productId - ID товара
+ * @param {number} delta - Изменение количества (+1 или -1)
+ */
 function changeQuantity(productId, delta) {
     const item = state.cart.find(i => i.id === productId);
     if (!item) return;
@@ -342,7 +382,11 @@ function changeQuantity(productId, delta) {
     updateUI();
 }
 
-// Change quantity by index (for items with sizes)
+/**
+ * Изменить количество товара по индексу (для товаров с размерами)
+ * @param {number} index - Индекс товара в массиве корзины
+ * @param {number} delta - Изменение количества
+ */
 function changeQuantityByIndex(index, delta) {
     if (index < 0 || index >= state.cart.length) return;
     
@@ -357,7 +401,11 @@ function changeQuantityByIndex(index, delta) {
     updateUI();
 }
 
-// Toggle favorite
+/**
+ * Переключить избранное
+ * Добавляет/удаляет товар из избранного
+ * @param {number} productId - ID товара
+ */
 function toggleFavorite(productId) {
     const index = state.favorites.indexOf(productId);
     if (index > -1) {
@@ -401,7 +449,11 @@ document.getElementById('clearCart').addEventListener('click', () => {
     }
 });
 
-// Modal state
+// ==================== МОДАЛЬНОЕ ОКНО ТОВАРА ====================
+
+/**
+ * Состояние модального окна товара
+ */
 let modalState = {
     productId: null,
     selectedSize: null,
@@ -412,7 +464,11 @@ let modalState = {
     touchEndX: 0
 };
 
-// Show product modal
+/**
+ * Показать модальное окно товара
+ * Загружает данные товара, настраивает галерею, размеры, описание
+ * @param {number} productId - ID товара
+ */
 function showProduct(productId) {
     const product = state.products.find(p => p.id === productId);
     if (!product) return;
@@ -563,7 +619,10 @@ function showProduct(productId) {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 }
 
-// Update image indicators
+/**
+ * Обновить индикаторы изображений в галерее
+ * Показывает точки для навигации по изображениям
+ */
 function updateImageIndicators() {
     const indicatorsEl = document.getElementById('modalImageIndicators');
     if (modalState.images.length <= 1) {
@@ -579,7 +638,10 @@ function updateImageIndicators() {
     `).join('');
 }
 
-// Go to specific image
+/**
+ * Перейти к конкретному изображению в галерее
+ * @param {number} index - Индекс изображения
+ */
 function goToImage(index) {
     if (index < 0 || index >= modalState.images.length) return;
     
@@ -596,7 +658,11 @@ function goToImage(index) {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 }
 
-// Setup swipe handlers
+/**
+ * Настройка обработчиков свайпа для галереи
+ * Поддерживает touch и mouse события
+ * Реализует плавную прокрутку с инерцией
+ */
 function setupSwipeHandlers() {
     const container = document.getElementById('modalImageContainer');
     if (!container || modalState.images.length <= 1) return;
@@ -805,7 +871,10 @@ function setupSwipeHandlers() {
     newContainer.style.cursor = 'grab';
 }
 
-// Close modal
+/**
+ * Закрыть модальное окно товара
+ * Восстанавливает отображение основного контента
+ */
 function closeModal() {
     const modal = document.getElementById('productModal');
     modal.classList.remove('active');
@@ -893,17 +962,21 @@ document.getElementById('modalSupportBtn').addEventListener('click', () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 });
 
-// Функция переключения страниц
+/**
+ * Переключение между страницами приложения
+ * Обновляет навигацию, показывает/скрывает элементы управления
+ * @param {string} page - Название страницы (catalog, favorites, cart, profile)
+ */
 function navigateToPage(page) {
-    state.currentPage = page;
-    
-    // Update nav
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        state.currentPage = page;
+        
+        // Update nav
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`[data-page="${page}"]`);
     if (navBtn) navBtn.classList.add('active');
-    
-    // Update pages
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        
+        // Update pages
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const pageEl = document.querySelector(`[data-page="${page}"]`);
     if (pageEl && pageEl.classList.contains('page')) {
         pageEl.classList.add('active');
@@ -911,37 +984,37 @@ function navigateToPage(page) {
         const pageSection = document.querySelector(`section[data-page="${page}"]`);
         if (pageSection) pageSection.classList.add('active');
     }
-    
-    // Show/hide catalog controls (brands, sort, search)
-    const brandsWrapper = document.getElementById('brandsWrapper');
-    const sortMenu = document.getElementById('sortMenu');
-    const searchBar = document.getElementById('searchBar');
-    const searchBtn = document.getElementById('searchBtn');
-    
-    if (page === 'catalog') {
-        brandsWrapper.style.display = 'flex';
-        searchBtn.style.display = 'flex';
-    } else {
-        brandsWrapper.style.display = 'none';
-        sortMenu.classList.remove('active');
-        searchBar.classList.remove('active');
-        searchBtn.style.display = 'none';
-    }
-    
-    // Show/hide checkout bar
-    const checkoutBar = document.getElementById('checkoutBar');
-    if (page === 'cart' && state.cart.length > 0) {
-        checkoutBar.classList.add('active');
-    } else {
-        checkoutBar.classList.remove('active');
-    }
-    
-    // Render page content
-    if (page === 'favorites') renderFavorites();
-    if (page === 'cart') renderCart();
-    if (page === 'profile') loadProfile();
-    
-    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        
+        // Show/hide catalog controls (brands, sort, search)
+        const brandsWrapper = document.getElementById('brandsWrapper');
+        const sortMenu = document.getElementById('sortMenu');
+        const searchBar = document.getElementById('searchBar');
+        const searchBtn = document.getElementById('searchBtn');
+        
+        if (page === 'catalog') {
+            brandsWrapper.style.display = 'flex';
+            searchBtn.style.display = 'flex';
+        } else {
+            brandsWrapper.style.display = 'none';
+            sortMenu.classList.remove('active');
+            searchBar.classList.remove('active');
+            searchBtn.style.display = 'none';
+        }
+        
+        // Show/hide checkout bar
+        const checkoutBar = document.getElementById('checkoutBar');
+        if (page === 'cart' && state.cart.length > 0) {
+            checkoutBar.classList.add('active');
+        } else {
+            checkoutBar.classList.remove('active');
+        }
+        
+        // Render page content
+        if (page === 'favorites') renderFavorites();
+        if (page === 'cart') renderCart();
+        if (page === 'profile') loadProfile();
+        
+        if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
 }
 
 // Navigation
@@ -1019,7 +1092,10 @@ document.querySelectorAll('.sort-menu-item').forEach(btn => {
     });
 });
 
-// Checkout
+/**
+ * Оформление заказа
+ * Отправляет данные заказа на сервер через Telegram WebApp API
+ */
 document.getElementById('checkoutBtn').addEventListener('click', async () => {
     if (state.cart.length === 0) return;
     
@@ -1062,7 +1138,11 @@ function getRandomEmoji() {
     return avatarEmojis[Math.floor(Math.random() * avatarEmojis.length)];
 }
 
-// Profile
+/**
+ * Загрузка профиля пользователя
+ * Получает данные из Telegram WebApp API
+ * Отображает имя, username, аватар, загружает заказы
+ */
 function loadProfile() {
     const user = tg.initDataUnsafe?.user;
     
@@ -1122,6 +1202,10 @@ function loadProfile() {
     loadOrders(userId);
 }
 
+/**
+ * Загрузка истории заказов пользователя
+ * @param {string|number} userId - ID пользователя
+ */
 async function loadOrders(userId) {
     try {
         const res = await fetch(`/api/orders/${userId}`);
@@ -1151,7 +1235,10 @@ async function loadOrders(userId) {
     }
 }
 
-// Update UI
+/**
+ * Обновление UI элементов
+ * Обновляет бейджи корзины и избранного
+ */
 function updateUI() {
     // Cart badge
     const cartCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -1165,16 +1252,25 @@ function updateUI() {
     favBadge.classList.toggle('active', state.favorites.length > 0);
 }
 
-// Save to localStorage
+/**
+ * Сохранение корзины в localStorage
+ */
 function saveCart() {
     localStorage.setItem('cart', JSON.stringify(state.cart));
 }
 
+/**
+ * Сохранение избранного в localStorage
+ */
 function saveFavorites() {
     localStorage.setItem('favorites', JSON.stringify(state.favorites));
 }
 
-// Format price
+/**
+ * Форматирование цены в рубли
+ * @param {number} price - Цена
+ * @returns {string} Отформатированная цена
+ */
 function formatPrice(price) {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
@@ -1183,7 +1279,10 @@ function formatPrice(price) {
     }).format(price);
 }
 
-// Initialize page visibility
+/**
+ * Инициализация видимости элементов управления
+ * Показывает/скрывает элементы в зависимости от страницы
+ */
 function initPageControls() {
     // By default, show only catalog controls (since catalog is the initial page)
     const brandsWrapper = document.getElementById('brandsWrapper');
@@ -1195,7 +1294,11 @@ function initPageControls() {
     checkoutBar.classList.remove('active');
 }
 
-// ESC key handler - всегда возвращает назад (не закрывает приложение)
+/**
+ * Обработчик клавиши ESC
+ * Навигация назад: закрывает модальное окно → меню сортировки → поиск → сброс фильтров → возврат на каталог
+ * Предотвращает закрытие Web App
+ */
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
         // Всегда предотвращаем закрытие приложения
@@ -1251,7 +1354,12 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Init app
+// ==================== ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ====================
+
+/**
+ * Инициализация приложения при загрузке DOM
+ * Настраивает начальное состояние, загружает товары и профиль
+ */
 document.addEventListener('DOMContentLoaded', () => {
     initPageControls();
     // Убеждаемся, что каталог активен при загрузке

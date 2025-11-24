@@ -1,5 +1,9 @@
-// Загружаем переменные окружения из .env (только для локальной разработки)
-// На Railway переменные окружения настраиваются через Dashboard
+/**
+ * bitter8 Telegram Bot
+ * Главный файл бота - обрабатывает команды, заказы и API запросы
+ */
+
+// Загрузка переменных окружения (локальная разработка)
 require('dotenv').config({ silent: true });
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -11,7 +15,8 @@ const db = require('./database');
 // Инициализация базы данных
 db.initializeDatabase();
 
-// Проверка наличия токена
+// ==================== ВАЛИДАЦИЯ ТОКЕНА ====================
+
 if (!process.env.BOT_TOKEN) {
     console.error('❌ Ошибка: BOT_TOKEN не найден!');
     console.error('📝 Для локальной разработки: создайте .env файл с BOT_TOKEN=ваш_токен');
@@ -19,7 +24,7 @@ if (!process.env.BOT_TOKEN) {
     process.exit(1);
 }
 
-// Проверка формата токена
+// Проверка формата токена (Telegram формат: число:строка)
 const tokenPattern = /^\d+:[A-Za-z0-9_-]+$/;
 if (!tokenPattern.test(process.env.BOT_TOKEN)) {
     console.error('Ошибка: BOT_TOKEN имеет неверный формат!');
@@ -30,24 +35,28 @@ if (!tokenPattern.test(process.env.BOT_TOKEN)) {
 // Логируем информацию о токене (безопасно - только первые 10 символов)
 console.log(`✅ Токен бота загружен: ${process.env.BOT_TOKEN.substring(0, 10)}...`);
 
-// Инициализация бота с улучшенными настройками
+// ==================== ИНИЦИАЛИЗАЦИЯ БОТА ====================
+
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
     polling: {
-        interval: 1000, // Увеличиваем интервал до 1 секунды
-        autoStart: false, // Отключаем автозапуск, запустим вручную после проверки
+        interval: 1000,        // Интервал опроса (1 сек)
+        autoStart: false,       // Ручной запуск после проверки
         params: {
-            timeout: 30 // Увеличиваем timeout до 30 секунд
+            timeout: 30         // Timeout запросов (30 сек)
         }
     },
     request: {
         agentOptions: {
-            keepAlive: true,
+            keepAlive: true,    // Поддержание соединения
             keepAliveMsecs: 10000
         }
     }
 });
 
-// Проверка валидности токена при старте
+/**
+ * Проверка валидности токена бота
+ * @returns {Promise<boolean>} true если токен валиден
+ */
 async function verifyBotToken() {
     try {
         const me = await bot.getMe();
@@ -65,7 +74,8 @@ async function verifyBotToken() {
     }
 }
 
-// Запуск бота после проверки токена
+// ==================== ЗАПУСК БОТА ====================
+
 (async () => {
     const isValid = await verifyBotToken();
     if (!isValid) {
@@ -96,13 +106,17 @@ async function verifyBotToken() {
     }
 })();
 
-const ADMIN_ID = process.env.ADMIN_ID;
+// ==================== НАСТРОЙКИ ====================
 
-// Инициализация Express для хостинга веб-приложения
+const ADMIN_ID = process.env.ADMIN_ID;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Определение WEB_APP_URL для Railway
+/**
+ * Определение URL веб-приложения
+ * Приоритет: Railway домен > статический URL > ручной URL > localhost
+ * @returns {string} URL веб-приложения
+ */
 // Railway автоматически предоставляет переменную RAILWAY_PUBLIC_DOMAIN
 // Если она есть, используем её, иначе берем из переменной окружения
 const getWebAppUrl = () => {
@@ -146,10 +160,15 @@ if ((WEB_APP_URL.includes('ngrok') || WEB_APP_URL.includes('ngrok-free.dev')) &&
     process.exit(1);
 }
 
-// Security middleware
-app.disable('x-powered-by'); // Скрываем информацию о Express
+// ==================== БЕЗОПАСНОСТЬ ====================
 
-// Rate limiting для защиты от DDoS
+// Скрываем информацию о сервере
+app.disable('x-powered-by');
+
+/**
+ * Rate Limiting - защита от DDoS
+ * Ограничение: 100 запросов в минуту с одного IP
+ */
 const requestCounts = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1 минута
 const MAX_REQUESTS = 100; // Максимум запросов в минуту
@@ -190,7 +209,9 @@ setInterval(() => {
     }
 }, 300000);
 
-// Security headers
+/**
+ * Security Headers - защита от XSS, clickjacking и других атак
+ */
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -200,7 +221,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// Хостинг статических файлов с отключением кеширования для разработки
+/**
+ * Статические файлы (HTML, CSS, JS, изображения)
+ * Кеширование отключено для разработки
+ */
 app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res, path) => {
         // Отключаем кеширование для HTML, CSS и JS файлов
@@ -213,7 +237,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 app.use(express.json({ limit: '1mb' })); // Ограничение размера JSON
 
-// Проверка origin для защиты от CSRF
+/**
+ * CORS - разрешение запросов только с разрешенных источников
+ * Защита от CSRF атак
+ */
 app.use((req, res, next) => {
     const allowedOrigins = [
         WEB_APP_URL,
@@ -230,7 +257,13 @@ app.use((req, res, next) => {
     next();
 });
 
-// Функция для безопасной отправки сообщений
+/**
+ * Безопасная отправка сообщений с обработкой ошибок
+ * @param {number} chatId - ID чата
+ * @param {string} text - Текст сообщения
+ * @param {object} options - Опции сообщения (parse_mode, reply_markup и т.д.)
+ * @returns {Promise<object|null>} Результат отправки или null при ошибке
+ */
 async function safeSendMessage(chatId, text, options = {}) {
     try {
         return await bot.sendMessage(chatId, text, options);
@@ -240,7 +273,12 @@ async function safeSendMessage(chatId, text, options = {}) {
     }
 }
 
-// Обработка команды /start
+// ==================== ОБРАБОТКА КОМАНД ====================
+
+/**
+ * Команда /start - приветствие и открытие магазина
+ * Для админа: дополнительные команды и статистика
+ */
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const username = msg.from.first_name || 'Пользователь';
@@ -272,7 +310,12 @@ bot.onText(/\/start/, async (msg) => {
     }
 });
 
-// Функция валидации данных заказа
+/**
+ * Валидация данных заказа
+ * Проверяет структуру, типы данных, лимиты и соответствие суммы
+ * @param {object} orderData - Данные заказа
+ * @returns {{valid: boolean, error?: string}} Результат валидации
+ */
 function validateOrderData(orderData) {
     // Проверка структуры
     if (!orderData || typeof orderData !== 'object') {
@@ -317,7 +360,12 @@ function validateOrderData(orderData) {
     return { valid: true };
 }
 
-// Функция для санитизации текста (защита от XSS)
+/**
+ * Санитизация текста - защита от XSS атак
+ * Удаляет опасные символы и ограничивает длину
+ * @param {string} text - Исходный текст
+ * @returns {string} Очищенный текст
+ */
 function sanitizeText(text) {
     if (typeof text !== 'string') return '';
     return text
@@ -327,7 +375,11 @@ function sanitizeText(text) {
         .substring(0, 500);
 }
 
-// Обработка данных из Web App
+/**
+ * Обработка заказов из Web App
+ * Принимает данные заказа, валидирует, сохраняет в БД
+ * Отправляет уведомления клиенту и админу
+ */
 bot.on('web_app_data', async (msg) => {
     const chatId = msg.chat.id;
     const data = msg.web_app_data.data;
@@ -420,7 +472,10 @@ bot.on('web_app_data', async (msg) => {
     }
 });
 
-// Обработка нажатий на кнопки админа
+/**
+ * Обработка callback кнопок (принять/отклонить заказ)
+ * Доступно только администратору
+ */
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const messageId = query.message.message_id;
@@ -499,6 +554,11 @@ bot.on('callback_query', async (query) => {
     }
 });
 
+/**
+ * Форматирование цены в рубли
+ * @param {number} price - Цена
+ * @returns {string} Отформатированная цена
+ */
 function formatPrice(price) {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
@@ -507,7 +567,9 @@ function formatPrice(price) {
     }).format(price);
 }
 
-// Команда для просмотра заказов (только для админа)
+/**
+ * Команда /orders - список последних заказов (только для админа)
+ */
 bot.onText(/\/orders|📋 Заказы/, async (msg) => {
     const chatId = msg.chat.id;
     
@@ -545,7 +607,10 @@ bot.onText(/\/orders|📋 Заказы/, async (msg) => {
     await safeSendMessage(chatId, message, { parse_mode: 'Markdown' });
 });
 
-// Команда для статистики (только для админа)
+/**
+ * Команда /stats - статистика продаж (только для админа)
+ * Показывает: общее количество заказов, выручку, средний чек, топ товары
+ */
 bot.onText(/\/stats|📊 Статистика/, async (msg) => {
     const chatId = msg.chat.id;
     
@@ -590,7 +655,10 @@ bot.onText(/\/stats|📊 Статистика/, async (msg) => {
     await safeSendMessage(chatId, statsMessage, { parse_mode: 'Markdown' });
 });
 
-// Обработка сообщений
+/**
+ * Обработка обычных сообщений (не команд)
+ * Напоминает пользователю использовать кнопку для открытия магазина
+ */
 bot.on('message', async (msg) => {
     // Игнорируем команды и web_app_data
     if (msg.text && !msg.text.startsWith('/') && !msg.web_app_data) {
@@ -599,7 +667,12 @@ bot.on('message', async (msg) => {
     }
 });
 
-// API endpoint для получения данных из веб-приложения (с валидацией)
+// ==================== API ENDPOINTS ====================
+
+/**
+ * POST /api/data - Прием данных заказа из веб-приложения
+ * Валидирует данные заказа
+ */
 app.post('/api/data', (req, res) => {
     try {
         const orderData = req.body;
@@ -624,7 +697,10 @@ app.post('/api/data', (req, res) => {
     }
 });
 
-// API endpoint для получения истории заказов пользователя
+/**
+ * GET /api/orders/:telegramId - Получить историю заказов пользователя
+ * Возвращает список заказов с товарами
+ */
 app.get('/api/orders/:telegramId', (req, res) => {
     try {
         const telegramId = parseInt(req.params.telegramId);
@@ -660,7 +736,10 @@ app.get('/api/orders/:telegramId', (req, res) => {
     }
 });
 
-// API endpoint для проверки промокода
+/**
+ * POST /api/promo/validate - Проверка промокода
+ * Проверяет валидность, срок действия, лимиты использования
+ */
 app.post('/api/promo/validate', (req, res) => {
     try {
         const { code, orderAmount } = req.body;
@@ -682,10 +761,14 @@ app.post('/api/promo/validate', (req, res) => {
     }
 });
 
-// API endpoint для получения списка товаров (с кешированием)
+/**
+ * GET /api/products - Получить список товаров
+ * Кеширование: 10 секунд для снижения нагрузки на файловую систему
+ * Санитизация данных для безопасности
+ */
 let productsCache = null;
 let productsCacheTime = 0;
-const CACHE_DURATION = 10000; // 10 секунд для разработки
+const CACHE_DURATION = 10000; // 10 секунд
 
 app.get('/api/products', (req, res) => {
     try {
@@ -709,20 +792,39 @@ app.get('/api/products', (req, res) => {
             throw new Error('Неверный формат данных товаров');
         }
         
-        // Санитизация данных - удаляем потенциально опасные поля
-        const sanitizedProducts = products.map(p => ({
-            id: p.id,
-            name: String(p.name || '').substring(0, 200),
-            brand: String(p.brand || '').substring(0, 100),
-            description: String(p.description || '').substring(0, 500),
-            price: Number(p.price) || 0,
-            emoji: String(p.emoji || '🛍️'),
-            image: String(p.image || ''),
-            images: Array.isArray(p.images) ? p.images.slice(0, 10) : [],
-            fullDescription: String(p.fullDescription || '').substring(0, 2000),
-            specs: Array.isArray(p.specs) ? p.specs.slice(0, 20) : [],
-            dateAdded: String(p.dateAdded || new Date().toISOString())
-        }));
+        // Обработка и нормализация товаров
+        // Автоматически генерирует недостающие поля для удобства добавления новых товаров
+        const sanitizedProducts = products.map((p, index) => {
+            // Автоматическая генерация ID если не указан
+            const id = p.id || (index + 1);
+            
+            // Если есть основное изображение, добавляем его в массив images если его там нет
+            const allImages = [];
+            if (p.image) {
+                allImages.push(p.image);
+            }
+            if (Array.isArray(p.images)) {
+                p.images.forEach(img => {
+                    if (img && !allImages.includes(img)) {
+                        allImages.push(img);
+                    }
+                });
+            }
+            
+            return {
+                id: id,
+                name: String(p.name || `Товар ${id}`).substring(0, 200),
+                brand: String(p.brand || 'Без бренда').substring(0, 100),
+                description: String(p.description || p.name || '').substring(0, 500),
+                price: Number(p.price) || 0,
+                emoji: String(p.emoji || '🛍️'),
+                image: String(p.image || (allImages.length > 0 ? allImages[0] : '')),
+                images: allImages.slice(0, 10), // Максимум 10 изображений
+                fullDescription: String(p.fullDescription || p.description || p.name || '').substring(0, 2000),
+                specs: Array.isArray(p.specs) ? p.specs.slice(0, 20) : [],
+                dateAdded: String(p.dateAdded || new Date().toISOString())
+            };
+        });
         
         // Обновляем кеш
         productsCache = sanitizedProducts;
@@ -737,19 +839,25 @@ app.get('/api/products', (req, res) => {
     }
 });
 
-// Endpoint для очистки кеша товаров
+/**
+ * POST /api/products/clear-cache - Очистить кеш товаров
+ * Полезно после обновления products.json
+ */
 app.post('/api/products/clear-cache', (req, res) => {
     productsCache = null;
     productsCacheTime = 0;
     res.json({ success: true, message: 'Кеш товаров очищен' });
 });
 
-// 404 handler
+/**
+ * 404 Handler - обработка несуществующих маршрутов
+ */
 app.use((req, res) => {
     res.status(404).json({ error: 'Страница не найдена' });
 });
 
-// Запуск веб-сервера
+// ==================== ЗАПУСК СЕРВЕРА ====================
+
 app.listen(PORT, () => {
     console.log(`🚀 Бот запущен!`);
     console.log(`🌐 Веб-сервер работает на порту ${PORT}`);
@@ -760,8 +868,12 @@ app.listen(PORT, () => {
     console.log(`🔒 Безопасность: Rate limiting, CORS, Headers, Validation ✓`);
 });
 
-// Обработка ошибок с логированием
-// Обработка ошибок polling с автоматическим переподключением
+// ==================== ОБРАБОТКА ОШИБОК ====================
+
+/**
+ * Обработка ошибок polling с автоматическим переподключением
+ * При 10+ ошибках автоматически перезапускает polling
+ */
 let pollingErrorCount = 0;
 const MAX_POLLING_ERRORS = 10;
 let isRestarting = false;
@@ -829,6 +941,9 @@ bot.on('polling_error', (error) => {
     }
 });
 
+/**
+ * Обработка общих ошибок бота
+ */
 bot.on('error', (error) => {
     console.error(`[${new Date().toISOString()}] Общая ошибка бота:`, error.message);
     if (error.stack) {
@@ -836,22 +951,32 @@ bot.on('error', (error) => {
     }
 });
 
-// Обработка успешного подключения
+/**
+ * Обработка ошибок webhook (если используется)
+ */
 bot.on('webhook_error', (error) => {
     console.error(`[${new Date().toISOString()}] Ошибка webhook:`, error.message);
 });
 
-// Обработка необработанных отклонений промисов
+/**
+ * Обработка необработанных Promise rejections
+ */
 process.on('unhandledRejection', (reason, promise) => {
     console.error(`[${new Date().toISOString()}] Unhandled Rejection:`, reason);
 });
 
+/**
+ * Обработка необработанных исключений
+ * Даёт время на запись логов перед выходом
+ */
 process.on('uncaughtException', (error) => {
     console.error(`[${new Date().toISOString()}] Uncaught Exception:`, error);
-    // Даём время на запись логов перед выходом
     setTimeout(() => process.exit(1), 1000);
 });
 
+/**
+ * Graceful shutdown при SIGINT (Ctrl+C)
+ */
 process.on('SIGINT', () => {
     console.log('\n👋 Остановка бота...');
     bot.stopPolling();

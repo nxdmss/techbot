@@ -1,101 +1,109 @@
+/**
+ * Database Module
+ * Работа с SQLite базой данных через better-sqlite3
+ * Управление пользователями, заказами, промокодами
+ */
+
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// Создаём подключение к базе данных
-// Verbose режим только в development
+// Подключение к базе данных
 const dbOptions = process.env.NODE_ENV === 'development' 
-    ? { verbose: console.log } 
+    ? { verbose: console.log }  // Логирование SQL в development
     : {};
 const db = new Database(path.join(__dirname, 'shop.db'), dbOptions);
 
-// Включаем поддержку внешних ключей
+// Включаем поддержку внешних ключей для целостности данных
 db.pragma('foreign_keys = ON');
 
-// Инициализация таблиц
+/**
+ * Инициализация базы данных
+ * Создает все необходимые таблицы и индексы
+ */
 function initializeDatabase() {
     console.log('📊 Инициализация базы данных...');
 
     try {
-        // Таблица пользователей
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                username TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                phone_number TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    // Таблица пользователей
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            telegram_id INTEGER UNIQUE NOT NULL,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            phone_number TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
-        // Таблица заказов
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                order_number TEXT UNIQUE NOT NULL,
-                status TEXT DEFAULT 'new',
-                total_amount REAL NOT NULL,
-                promo_code TEXT,
-                discount_amount REAL DEFAULT 0,
-                notes TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        `);
+    // Таблица заказов
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            order_number TEXT UNIQUE NOT NULL,
+            status TEXT DEFAULT 'new',
+            total_amount REAL NOT NULL,
+            promo_code TEXT,
+            discount_amount REAL DEFAULT 0,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    `);
 
-        // Таблица товаров в заказе
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS order_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
-                product_name TEXT NOT NULL,
-                product_price REAL NOT NULL,
-                quantity INTEGER NOT NULL,
-                subtotal REAL NOT NULL,
-                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-            )
-        `);
+    // Таблица товаров в заказе
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            product_price REAL NOT NULL,
+            quantity INTEGER NOT NULL,
+            subtotal REAL NOT NULL,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        )
+    `);
 
-        // Таблица промокодов
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS promo_codes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                code TEXT UNIQUE NOT NULL,
-                discount_type TEXT NOT NULL,
-                discount_value REAL NOT NULL,
-                min_order_amount REAL DEFAULT 0,
-                max_uses INTEGER,
-                used_count INTEGER DEFAULT 0,
-                expires_at DATETIME,
-                is_active BOOLEAN DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    // Таблица промокодов
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            discount_type TEXT NOT NULL,
+            discount_value REAL NOT NULL,
+            min_order_amount REAL DEFAULT 0,
+            max_uses INTEGER,
+            used_count INTEGER DEFAULT 0,
+            expires_at DATETIME,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
-        // Таблица истории использования промокодов
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS promo_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                promo_code_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                order_id INTEGER NOT NULL,
-                used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (order_id) REFERENCES orders(id)
-            )
-        `);
+    // Таблица истории использования промокодов
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS promo_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            promo_code_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            order_id INTEGER NOT NULL,
+            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    `);
     } catch (error) {
         console.error('❌ Ошибка при создании таблиц:', error.message);
         throw error;
     }
 
-    // Создаём индексы для быстрого поиска (раздельно для надежности)
+    // Создание индексов для оптимизации запросов
     try {
         db.exec('CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)');
         db.exec('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
@@ -110,7 +118,12 @@ function initializeDatabase() {
 
 // ==================== USERS ====================
 
-// Создать или обновить пользователя
+/**
+ * Создать или обновить пользователя
+ * Использует INSERT ... ON CONFLICT для обновления существующих записей
+ * @param {object} telegramUser - Данные пользователя из Telegram
+ * @returns {object} Объект пользователя из БД
+ */
 function createOrUpdateUser(telegramUser) {
     const stmt = db.prepare(`
         INSERT INTO users (telegram_id, username, first_name, last_name, phone_number, updated_at)
@@ -134,14 +147,25 @@ function createOrUpdateUser(telegramUser) {
     return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramUser.id);
 }
 
-// Получить пользователя по Telegram ID
+/**
+ * Получить пользователя по Telegram ID
+ * @param {number} telegramId - Telegram ID пользователя
+ * @returns {object|null} Объект пользователя или null
+ */
 function getUserByTelegramId(telegramId) {
     return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
 }
 
 // ==================== ORDERS ====================
 
-// Создать новый заказ
+/**
+ * Создать новый заказ
+ * Использует транзакцию для атомарности операции
+ * Генерирует уникальный номер заказа
+ * @param {number} userId - ID пользователя
+ * @param {object} orderData - Данные заказа (items, total, promoCode и т.д.)
+ * @returns {object} Созданный заказ с товарами
+ */
 function createOrder(userId, orderData) {
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     
@@ -189,7 +213,11 @@ function createOrder(userId, orderData) {
     return getOrderById(orderId);
 }
 
-// Получить заказ по ID
+/**
+ * Получить заказ по ID с товарами
+ * @param {number} orderId - ID заказа
+ * @returns {object|null} Заказ с массивом items или null
+ */
 function getOrderById(orderId) {
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
     
@@ -200,7 +228,11 @@ function getOrderById(orderId) {
     return order;
 }
 
-// Получить заказ по номеру
+/**
+ * Получить заказ по номеру с товарами
+ * @param {string} orderNumber - Номер заказа (ORD-...)
+ * @returns {object|null} Заказ с массивом items или null
+ */
 function getOrderByNumber(orderNumber) {
     const order = db.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
     
@@ -211,7 +243,12 @@ function getOrderByNumber(orderNumber) {
     return order;
 }
 
-// Получить все заказы пользователя
+/**
+ * Получить все заказы пользователя
+ * @param {number} userId - ID пользователя
+ * @param {number} limit - Максимальное количество заказов (по умолчанию 50)
+ * @returns {Array} Массив заказов с товарами
+ */
 function getUserOrders(userId, limit = 50) {
     const orders = db.prepare(`
         SELECT * FROM orders 
@@ -228,7 +265,12 @@ function getUserOrders(userId, limit = 50) {
     return orders;
 }
 
-// Обновить статус заказа
+/**
+ * Обновить статус заказа
+ * @param {number} orderId - ID заказа
+ * @param {string} status - Новый статус (new, processing, paid, shipped, delivered, cancelled)
+ * @returns {object} Результат обновления
+ */
 function updateOrderStatus(orderId, status) {
     const validStatuses = ['new', 'processing', 'paid', 'shipped', 'delivered', 'cancelled'];
     
@@ -245,7 +287,11 @@ function updateOrderStatus(orderId, status) {
     return stmt.run(status, orderId);
 }
 
-// Получить все заказы (для админа)
+/**
+ * Получить все заказы с фильтрацией (для админа)
+ * @param {object} filters - Фильтры (status, startDate, endDate, limit)
+ * @returns {Array} Массив заказов с данными пользователей и товарами
+ */
 function getAllOrders(filters = {}) {
     let query = 'SELECT o.*, u.telegram_id, u.first_name, u.username FROM orders o JOIN users u ON o.user_id = u.id';
     const conditions = [];
@@ -288,7 +334,11 @@ function getAllOrders(filters = {}) {
 
 // ==================== PROMO CODES ====================
 
-// Создать промокод
+/**
+ * Создать промокод
+ * @param {object} promoData - Данные промокода (code, discountType, discountValue и т.д.)
+ * @returns {object} Результат создания
+ */
 function createPromoCode(promoData) {
     const stmt = db.prepare(`
         INSERT INTO promo_codes (code, discount_type, discount_value, min_order_amount, max_uses, expires_at)
@@ -305,7 +355,13 @@ function createPromoCode(promoData) {
     );
 }
 
-// Проверить промокод
+/**
+ * Проверить промокод
+ * Проверяет: существование, активность, срок действия, лимиты, минимальную сумму
+ * @param {string} code - Код промокода
+ * @param {number} orderAmount - Сумма заказа
+ * @returns {{valid: boolean, error?: string, promoId?: number, discount?: number, code?: string}}
+ */
 function validatePromoCode(code, orderAmount) {
     const promo = db.prepare(`
         SELECT * FROM promo_codes 
@@ -350,7 +406,14 @@ function validatePromoCode(code, orderAmount) {
     };
 }
 
-// Использовать промокод
+/**
+ * Использовать промокод
+ * Увеличивает счетчик использований и записывает в историю
+ * Использует транзакцию для атомарности
+ * @param {number} promoId - ID промокода
+ * @param {number} userId - ID пользователя
+ * @param {number} orderId - ID заказа
+ */
 function usePromoCode(promoId, userId, orderId) {
     const transaction = db.transaction((promoId, userId, orderId) => {
         // Увеличиваем счётчик использований
@@ -368,7 +431,10 @@ function usePromoCode(promoId, userId, orderId) {
 
 // ==================== STATISTICS ====================
 
-// Получить статистику по заказам
+/**
+ * Получить статистику по заказам
+ * @returns {object} Статистика: total_orders, total_revenue, avg_order_value, unique_customers, by_status
+ */
 function getOrderStats() {
     const stats = db.prepare(`
         SELECT 
@@ -392,7 +458,11 @@ function getOrderStats() {
     };
 }
 
-// Получить топ товары
+/**
+ * Получить топ товары по продажам
+ * @param {number} limit - Количество товаров (по умолчанию 10)
+ * @returns {Array} Массив товаров с количеством продаж и выручкой
+ */
 function getTopProducts(limit = 10) {
     return db.prepare(`
         SELECT 

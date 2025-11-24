@@ -260,7 +260,7 @@ body.dark .product-image {
     z-index: 150;
     overflow: hidden;
     transform-origin: top right;
-    opacity: 0;
+        opacity: 0;
     transform: scale(0.3);
     pointer-events: none;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -268,10 +268,10 @@ body.dark .product-image {
 
 .brands-wrapper {
     position: relative;
-}
+    }
 
 .sort-menu.active {
-    opacity: 1;
+        opacity: 1;
     transform: scale(1);
     pointer-events: auto;
 }
