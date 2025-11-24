@@ -163,27 +163,53 @@ function renderProducts() {
     
     empty.classList.remove('active');
     grid.innerHTML = filtered.map(product => {
-        const imageContent = product.image 
-            ? `<img src="${product.image}" alt="${product.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-               <div class="product-emoji" style="display:none;">${product.emoji || '🛍️'}</div>`
+        // Подготовка изображений для превью
+        const allImages = [];
+        if (product.image) allImages.push(product.image);
+        if (product.images && Array.isArray(product.images)) {
+            allImages.push(...product.images);
+        }
+        const hasMultipleImages = allImages.length > 1;
+        
+        const imageContent = allImages.length > 0
+            ? `<div class="product-image-gallery" data-product-id="${product.id}">
+                <div class="product-image-slides">
+                    ${allImages.map((img, idx) => `
+                        <div class="product-image-slide ${idx === 0 ? 'active' : ''}" style="transform: translateX(${idx * 100}%)">
+                            <img src="${img}" alt="${product.name}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 5rem; display: flex; align-items: center; justify-content: center; height: 100%\\'>${product.emoji || '🛍️'}</div>';">
+                        </div>
+                    `).join('')}
+                </div>
+                ${hasMultipleImages ? `<div class="product-image-indicators" data-product-id="${product.id}">
+                    <div class="product-image-counter">1/${allImages.length}</div>
+                    <div class="product-image-dots">
+                        ${allImages.map((_, idx) => `<span class="product-image-dot ${idx === 0 ? 'active' : ''}"></span>`).join('')}
+                    </div>
+                </div>` : ''}
+               </div>`
             : `<div class="product-emoji">${product.emoji || '🛍️'}</div>`;
         
         return `
             <div class="product-card" onclick="showProduct(${product.id})">
-                    <div class="product-image">
+                <div class="product-image">
                     <button class="favorite-btn ${state.favorites.includes(product.id) ? 'active' : ''}" 
                             onclick="event.stopPropagation(); toggleFavorite(${product.id})">
                         ♡
                     </button>
                     ${imageContent}
-                    </div>
+                </div>
                 <div class="product-info">
                     <div class="product-name">${product.name}</div>
-                        <div class="product-price">${formatPrice(product.price)}</div>
+                    <div class="product-price">${formatPrice(product.price)}</div>
                 </div>
             </div>
         `;
     }).join('');
+    
+    // Инициализация свайпа для превью товаров
+    if (filtered.length > 0) {
+        setTimeout(() => initProductImageSwipes(), 50);
+    }
 }
 
 /**
@@ -533,6 +559,7 @@ function showProduct(productId) {
         // Update indicators after images are loaded
         updateImageIndicators();
         setupSwipeHandlers();
+        setupModalImageClickHandlers(); // Добавляем клики по бокам
     }, 50);
     
     
@@ -637,7 +664,7 @@ function showProduct(productId) {
 
 /**
  * Обновить индикаторы изображений в галерее
- * Показывает точки для навигации по изображениям
+ * Показывает номера (1/3, 2/3) и точки для навигации
  */
 function updateImageIndicators() {
     const indicatorsEl = document.getElementById('modalImageIndicators');
@@ -648,10 +675,19 @@ function updateImageIndicators() {
     }
     
     indicatorsEl.style.display = 'flex';
-    indicatorsEl.innerHTML = modalState.images.map((_, index) => `
-        <button class="modal-image-indicator ${index === modalState.currentImageIndex ? 'active' : ''}" 
-                onclick="goToImage(${index})"></button>
-    `).join('');
+    const currentNum = modalState.currentImageIndex + 1;
+    const totalNum = modalState.images.length;
+    
+    // Показываем номер текущего изображения и точки
+    indicatorsEl.innerHTML = `
+        <div class="modal-image-counter">${currentNum}/${totalNum}</div>
+        <div class="modal-image-dots">
+            ${modalState.images.map((_, index) => `
+                <button class="modal-image-indicator ${index === modalState.currentImageIndex ? 'active' : ''}" 
+                        onclick="goToImage(${index})"></button>
+            `).join('')}
+        </div>
+    `;
 }
 
 /**
@@ -885,6 +921,44 @@ function setupSwipeHandlers() {
     });
     
     newContainer.style.cursor = 'grab';
+}
+
+/**
+ * Настройка кликов по боковым сторонам изображения для переключения
+ */
+function setupModalImageClickHandlers() {
+    const container = document.getElementById('modalImageContainer');
+    if (!container || modalState.images.length <= 1) return;
+    
+    // Удаляем старые обработчики если есть
+    const leftZone = container.querySelector('.modal-image-left-zone');
+    const rightZone = container.querySelector('.modal-image-right-zone');
+    if (leftZone) leftZone.remove();
+    if (rightZone) rightZone.remove();
+    
+    // Создаем зоны для кликов по бокам
+    const leftClickZone = document.createElement('div');
+    leftClickZone.className = 'modal-image-left-zone';
+    leftClickZone.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (modalState.currentImageIndex > 0) {
+            goToImage(modalState.currentImageIndex - 1);
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        }
+    });
+    
+    const rightClickZone = document.createElement('div');
+    rightClickZone.className = 'modal-image-right-zone';
+    rightClickZone.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (modalState.currentImageIndex < modalState.images.length - 1) {
+            goToImage(modalState.currentImageIndex + 1);
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        }
+    });
+    
+    container.appendChild(leftClickZone);
+    container.appendChild(rightClickZone);
 }
 
 /**
@@ -1461,3 +1535,145 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProducts();
     loadProfile();
 });
+
+/**
+ * Инициализация свайпа для превью товаров в каталоге
+ */
+function initProductImageSwipes() {
+    document.querySelectorAll('.product-image-gallery').forEach(gallery => {
+        const productId = parseInt(gallery.dataset.productId);
+        const product = state.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const allImages = [];
+        if (product.image) allImages.push(product.image);
+        if (product.images && Array.isArray(product.images)) {
+            allImages.push(...product.images);
+        }
+        
+        if (allImages.length <= 1) return;
+        
+        const slides = gallery.querySelectorAll('.product-image-slide');
+        const indicators = gallery.querySelector('.product-image-indicators');
+        const counter = indicators?.querySelector('.product-image-counter');
+        const dots = indicators?.querySelectorAll('.product-image-dot');
+        
+        let currentIndex = 0;
+        let touchStartX = 0;
+        let touchEndX = 0;
+        let isSwiping = false;
+        
+        // Touch events
+        gallery.addEventListener('touchstart', (e) => {
+            e.stopPropagation(); // Предотвращаем открытие модального окна
+            touchStartX = e.touches[0].clientX;
+            isSwiping = true;
+        }, { passive: true });
+        
+        gallery.addEventListener('touchmove', (e) => {
+            if (!isSwiping) return;
+            e.stopPropagation();
+        }, { passive: true });
+        
+        gallery.addEventListener('touchend', (e) => {
+            if (!isSwiping) return;
+            e.stopPropagation();
+            isSwiping = false;
+            touchEndX = e.changedTouches[0].clientX;
+            const swipeDistance = touchStartX - touchEndX;
+            const swipeThreshold = 50;
+            
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+                if (swipeDistance > 0 && currentIndex < allImages.length - 1) {
+                    // Swipe left - next image
+                    currentIndex++;
+                } else if (swipeDistance < 0 && currentIndex > 0) {
+                    // Swipe right - previous image
+                    currentIndex--;
+                }
+                
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            }
+        }, { passive: true });
+        
+        // Mouse events для десктопа
+        let mouseDown = false;
+        let mouseStartX = 0;
+        
+        gallery.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            mouseDown = true;
+            mouseStartX = e.clientX;
+        });
+        
+        gallery.addEventListener('mouseup', (e) => {
+            if (!mouseDown) return;
+            e.stopPropagation();
+            mouseDown = false;
+            const mouseEndX = e.clientX;
+            const swipeDistance = mouseStartX - mouseEndX;
+            const swipeThreshold = 50;
+            
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+                if (swipeDistance > 0 && currentIndex < allImages.length - 1) {
+                    currentIndex++;
+                } else if (swipeDistance < 0 && currentIndex > 0) {
+                    currentIndex--;
+                }
+                
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            }
+        });
+        
+        // Клики по бокам для переключения
+        const leftZone = document.createElement('div');
+        leftZone.className = 'product-image-left-zone';
+        leftZone.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            }
+        });
+        
+        const rightZone = document.createElement('div');
+        rightZone.className = 'product-image-right-zone';
+        rightZone.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentIndex < allImages.length - 1) {
+                currentIndex++;
+                updateProductGallery(gallery, currentIndex, allImages.length, slides, counter, dots);
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            }
+        });
+        
+        gallery.appendChild(leftZone);
+        gallery.appendChild(rightZone);
+    });
+}
+
+/**
+ * Обновление галереи превью товара
+ */
+function updateProductGallery(gallery, index, total, slides, counter, dots) {
+    // Обновляем слайды
+    slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+        slide.style.transform = `translateX(${(i - index) * 100}%)`;
+    });
+    
+    // Обновляем счетчик
+    if (counter) {
+        counter.textContent = `${index + 1}/${total}`;
+    }
+    
+    // Обновляем точки
+    if (dots) {
+        dots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === index);
+        });
+    }
+}
