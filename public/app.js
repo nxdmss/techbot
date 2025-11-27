@@ -82,10 +82,10 @@ function renderBrands() {
 }
 
 function selectBrand(brand, btn) {
-    state.currentBrand = brand;
+            state.currentBrand = brand;
     $$('.brand-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderProducts();
+            btn.classList.add('active');
+            renderProducts();
 }
 
 function getFilteredProducts() {
@@ -133,13 +133,9 @@ function renderProducts() {
         
         return `
             <div class="product-card" onclick="showProduct(${p.id})">
-            <div class="product-image">
+                    <div class="product-image">
                 <button class="favorite-btn ${state.favorites.includes(p.id) ? 'active' : ''}" 
-                        onclick="event.stopPropagation(); toggleFavorite(${p.id})">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                </button>
+                        onclick="event.stopPropagation(); toggleFavorite(${p.id})">♡</button>
                     ${images.length ? `
                         <div class="product-image-gallery" data-product-id="${p.id}">
                             <div class="product-image-slides">
@@ -152,7 +148,7 @@ function renderProducts() {
                             ${hasMultiple ? `<div class="product-image-indicators">${images.map((_, i) => `<span class="product-image-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}</div>` : ''}
                         </div>
                     ` : `<div class="product-emoji">${p.emoji || '🛍️'}</div>`}
-                </div>
+                    </div>
                 <div class="product-info">
                     <div class="product-name">${p.name}</div>
                     <div class="product-price">${formatPrice(p.price)}</div>
@@ -178,19 +174,15 @@ function renderFavorites() {
     empty.classList.remove('active');
     grid.innerHTML = favs.map(p => `
         <div class="product-card" onclick="showProduct(${p.id})">
-            <div class="product-image">
-                <button class="favorite-btn active" onclick="event.stopPropagation(); toggleFavorite(${p.id})">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                </button>
+                <div class="product-image">
+                <button class="favorite-btn active" onclick="event.stopPropagation(); toggleFavorite(${p.id})">♡</button>
                 ${p.image ? `<img src="${p.image}" alt="${p.name}">` : `<div class="product-emoji">${p.emoji || '🛍️'}</div>`}
-            </div>
-            <div class="product-info">
+                </div>
+                <div class="product-info">
                 <div class="product-name">${p.name}</div>
                 <div class="product-price">${formatPrice(p.price)}</div>
+                </div>
             </div>
-        </div>
     `).join('');
 }
 
@@ -253,7 +245,7 @@ function addToCart(id, size = null) {
     
     if (existing) {
         existing.quantity++;
-    } else {
+        } else {
         state.cart.push({ id, quantity: 1, size, ...p });
     }
     
@@ -267,7 +259,7 @@ function changeQty(index, delta) {
     state.cart[index].quantity += delta;
     if (state.cart[index].quantity <= 0) state.cart.splice(index, 1);
     saveCart();
-    renderCart();
+        renderCart();
     updateUI();
 }
 
@@ -304,7 +296,7 @@ function showProduct(id) {
                     <img src="${img}" alt="${p.name}" onerror="this.parentElement.innerHTML='<div style=font-size:8rem>${p.emoji || '🛍️'}</div>'">
                 </div>
             `).join('');
-        } else {
+    } else {
             imageEl.style.width = `${w}px`;
             imageEl.innerHTML = `<div class="modal-image-slide" style="width:${w}px"><div style="font-size:8rem">${p.emoji || '🛍️'}</div></div>`;
         }
@@ -317,11 +309,7 @@ function showProduct(id) {
     // Избранное
     const modalFavBtn = $('#modalFavoriteBtn');
     modalFavBtn.classList.toggle('active', state.favorites.includes(id));
-    modalFavBtn.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-        </svg>
-    `;
+    modalFavBtn.textContent = '♡';
     
     // Размеры (для одежды)
     const sizeSection = $('#modalSizeSection');
@@ -332,7 +320,7 @@ function showProduct(id) {
         sizeSection.style.display = 'block';
         sizesEl.innerHTML = ['S', 'M', 'L', 'XL'].map(s => `<button class="modal-size-btn" data-size="${s}">${s}</button>`).join('');
         sizesEl.querySelector('.modal-size-btn')?.classList.add('active');
-        modalState.selectedSize = 'S';
+            modalState.selectedSize = 'S';
         
         sizesEl.querySelectorAll('.modal-size-btn').forEach(btn => {
             btn.onclick = () => {
@@ -640,7 +628,7 @@ function initSortHandlers() {
     
     $$('.sort-direction-btn').forEach(btn => {
         btn.onclick = e => {
-            e.stopPropagation();
+    e.stopPropagation();
             const sort = btn.dataset.sort;
             
             if (state.currentSort === sort) {
@@ -732,35 +720,35 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Поиск
     $('#searchBtn').onclick = () => {
-        if (state.currentPage !== 'catalog') return;
+    if (state.currentPage !== 'catalog') return;
         const bar = $('#searchBar');
         bar.classList.toggle('active');
         if (bar.classList.contains('active')) {
             $('#searchInput').focus();
-        } else {
+    } else {
             $('#searchInput').value = '';
-            state.searchQuery = '';
+        state.searchQuery = '';
             $('#searchClear').classList.remove('active');
-            renderProducts();
-        }
+        renderProducts();
+    }
     };
     
     $('#searchInput').oninput = e => {
-        state.searchQuery = e.target.value.trim();
+    state.searchQuery = e.target.value.trim();
         $('#searchClear').classList.toggle('active', state.searchQuery.length > 0);
-        renderProducts();
+    renderProducts();
     };
     
     $('#searchClear').onclick = () => {
         $('#searchInput').value = '';
-        state.searchQuery = '';
+    state.searchQuery = '';
         $('#searchClear').classList.remove('active');
-        renderProducts();
+    renderProducts();
     };
     
     // Сортировка
     $('#sortToggleBtn').onclick = e => {
-        e.stopPropagation();
+    e.stopPropagation();
         $('#sortMenu').classList.toggle('active');
         haptic();
     };
@@ -788,10 +776,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (ok) { state.cart = []; saveCart(); renderCart(); updateUI(); }
             });
         } else {
-            state.cart = [];
-            saveCart();
-            renderCart();
-            updateUI();
+        state.cart = [];
+        saveCart();
+        renderCart();
+        updateUI();
         }
     };
     
@@ -862,8 +850,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.searchQuery = '';
                 renderProducts();
                 haptic();
-                return;
-            }
+            return;
+        }
             if (state.currentPage === 'catalog' && state.currentBrand !== 'all') {
                 state.currentBrand = 'all';
                 renderBrands();
