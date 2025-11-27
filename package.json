@@ -1,26 +1,16 @@
 {
-  "name": "techbot-telegram-webapp",
+  "name": "bitter8-telegram-shop",
   "version": "1.0.0",
-  "description": "Telegram Web App with Bot Integration",
+  "description": "Telegram Web App магазин",
   "main": "bot.js",
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
-    "prestart": "npm rebuild better-sqlite3 || true",
     "start": "node bot.js",
     "dev": "nodemon bot.js",
-    "postinstall": "npm rebuild better-sqlite3",
-    "rebuild": "npm rebuild better-sqlite3"
+    "promo": "node scripts/create-promo.js"
   },
-  "keywords": [
-    "telegram",
-    "bot",
-    "webapp",
-    "telegram-web-app",
-    "railway"
-  ],
   "author": "",
   "license": "MIT",
   "dependencies": {

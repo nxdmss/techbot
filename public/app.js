@@ -1,21 +1,16 @@
 /**
  * bitter8 Web App
- * Фронтенд приложение для Telegram Web App
- * Управление каталогом, корзиной, избранным
+ * Telegram Web App магазин
  */
 
-// ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP ====================
+// === ИНИЦИАЛИЗАЦИЯ TELEGRAM ===
 
 const tg = window.Telegram.WebApp;
-tg.ready();   // Готовность Web App
-tg.expand();  // Развернуть на весь экран
+tg.ready();
+tg.expand();
+if (tg.colorScheme === 'dark') document.body.classList.add('dark');
 
-// Применение темы Telegram (темная/светлая)
-if (tg.colorScheme === 'dark') {
-    document.body.classList.add('dark');
-}
-
-// ==================== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ====================
+// === СОСТОЯНИЕ ===
 
 const state = {
     products: [],
@@ -23,1352 +18,558 @@ const state = {
     favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
     currentPage: 'catalog',
     currentBrand: 'all',
-    currentSort: 'price',        // Поле сортировки: price, date, name
-    sortDirection: 'asc',        // Направление: asc (↑) или desc (↓)
+    currentSort: 'price',
+    sortDirection: 'asc',
     searchQuery: ''
 };
 
-// Инициализация направления сортировки по умолчанию
-if (state.currentSort === 'date') {
-    state.sortDirection = 'desc'; // Для даты по умолчанию новые сверху
-}
+const modalState = {
+    productId: null,
+    selectedSize: null,
+    quantity: 1,
+    currentImageIndex: 0,
+    images: []
+};
 
-/**
- * Загрузка товаров с сервера
- * Загружает список товаров из /api/products
- * При ошибке использует fallback данные
- */
+// === УТИЛИТЫ ===
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+const formatPrice = (p) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(p);
+const haptic = (type = 'light') => tg.HapticFeedback?.impactOccurred(type);
+const saveCart = () => localStorage.setItem('cart', JSON.stringify(state.cart));
+const saveFavorites = () => localStorage.setItem('favorites', JSON.stringify(state.favorites));
+
+// === ЗАГРУЗКА ДАННЫХ ===
+
 async function loadProducts() {
     try {
         const res = await fetch('/api/products?refresh=true');
-        if (!res.ok) throw new Error('Failed to load');
+        if (!res.ok) throw new Error();
         state.products = await res.json();
-        console.log('Loaded products:', state.products.length, state.products);
-    } catch (error) {
-        console.error('Error loading products:', error);
-        // Показываем сообщение об ошибке, но не используем fallback
-        // Товары должны загружаться из products.json
+    } catch {
         state.products = [];
-        console.warn('Не удалось загрузить товары. Проверьте products.json и перезагрузите страницу.');
+        console.warn('Не удалось загрузить товары');
     }
     renderBrands();
     renderProducts();
     updateUI();
-    // Обновляем стрелки после загрузки товаров
     updateSortArrows();
 }
 
-/**
- * Рендеринг фильтров брендов
- * Создает кнопки для каждого бренда + кнопку "Все"
- */
+// === РЕНДЕРИНГ ===
+
 function renderBrands() {
     const brands = [...new Set(state.products.map(p => p.brand))].sort();
-    const brandsEl = document.getElementById('brands');
+    const el = $('#brands');
+    el.innerHTML = '';
     
-    // Очищаем все кнопки
-    brandsEl.innerHTML = '';
-    
-    // Создаем кнопку "Все"
+    // Кнопка "Все"
     const allBtn = document.createElement('button');
-    allBtn.className = 'brand-chip';
-    allBtn.dataset.brand = 'all';
+    allBtn.className = `brand-chip ${state.currentBrand === 'all' ? 'active' : ''}`;
     allBtn.textContent = 'Все';
-    if (state.currentBrand === 'all') {
-        allBtn.classList.add('active');
-    }
-    allBtn.addEventListener('click', () => {
-            state.currentBrand = 'all';
-            document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
-        allBtn.classList.add('active');
-            renderProducts();
-        });
-    brandsEl.appendChild(allBtn);
+    allBtn.onclick = () => selectBrand('all', allBtn);
+    el.appendChild(allBtn);
     
-    // Создаем кнопки брендов
+    // Кнопки брендов
     brands.forEach(brand => {
         const btn = document.createElement('button');
-        btn.className = 'brand-chip';
+        btn.className = `brand-chip ${state.currentBrand === brand ? 'active' : ''}`;
         btn.textContent = brand;
-        btn.dataset.brand = brand;
-        if (state.currentBrand === brand) {
-            btn.classList.add('active');
-        }
-        btn.addEventListener('click', () => {
-            state.currentBrand = brand;
-            document.querySelectorAll('.brand-chip').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            renderProducts();
-        });
-        brandsEl.appendChild(btn);
+        btn.onclick = () => selectBrand(brand, btn);
+        el.appendChild(btn);
     });
 }
 
-/**
- * Фильтрация и сортировка товаров
- * Применяет фильтры по бренду и поиску, затем сортирует
- * @returns {Array} Отфильтрованный и отсортированный массив товаров
- */
+function selectBrand(brand, btn) {
+    state.currentBrand = brand;
+    $$('.brand-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderProducts();
+}
+
 function getFilteredProducts() {
     let filtered = [...state.products];
     
-    // Brand filter
     if (state.currentBrand !== 'all') {
         filtered = filtered.filter(p => p.brand === state.currentBrand);
     }
     
-    // Search filter
     if (state.searchQuery) {
-        const query = state.searchQuery.toLowerCase();
+        const q = state.searchQuery.toLowerCase();
         filtered = filtered.filter(p => 
-            p.name.toLowerCase().includes(query) ||
-            p.description.toLowerCase().includes(query) ||
-            p.brand?.toLowerCase().includes(query)
+            p.name.toLowerCase().includes(q) || 
+            p.description?.toLowerCase().includes(q) ||
+            p.brand?.toLowerCase().includes(q)
         );
     }
     
-    // Sort
     filtered.sort((a, b) => {
-        let result = 0;
-        
-        if (state.currentSort === 'price') {
-            result = a.price - b.price;
-        } else if (state.currentSort === 'date') {
-            result = new Date(a.dateAdded) - new Date(b.dateAdded);
-        } else if (state.currentSort === 'name') {
-            result = a.name.localeCompare(b.name);
-        }
-        
-        // Применяем направление сортировки
-        return state.sortDirection === 'asc' ? result : -result;
+        let r = 0;
+        if (state.currentSort === 'price') r = a.price - b.price;
+        else if (state.currentSort === 'date') r = new Date(a.dateAdded) - new Date(b.dateAdded);
+        else if (state.currentSort === 'name') r = a.name.localeCompare(b.name);
+        return state.sortDirection === 'asc' ? r : -r;
     });
     
     return filtered;
 }
 
-/**
- * Рендеринг списка товаров
- * Отображает товары в сетке или показывает пустое состояние
- */
 function renderProducts() {
     const filtered = getFilteredProducts();
-    const grid = document.getElementById('products');
-    const empty = document.getElementById('emptyProducts');
+    const grid = $('#products');
+    const empty = $('#emptyProducts');
     
-    if (filtered.length === 0) {
+    if (!filtered.length) {
         grid.innerHTML = '';
         empty.classList.add('active');
         return;
     }
     
     empty.classList.remove('active');
-    grid.innerHTML = filtered.map(product => {
-        // Подготовка изображений для превью
-        const allImages = [];
-        if (product.image) allImages.push(product.image);
-        if (product.images && Array.isArray(product.images)) {
-            allImages.push(...product.images);
-        }
-        const hasMultipleImages = allImages.length > 1;
+    grid.innerHTML = filtered.map(p => {
+        const images = [p.image, ...(p.images || [])].filter(Boolean);
+        const hasMultiple = images.length > 1;
         
-        const imageContent = allImages.length > 0
-            ? `<div class="product-image-gallery" data-product-id="${product.id}">
-                <div class="product-image-slides">
-                    ${allImages.map((img, idx) => `
-                        <div class="product-image-slide ${idx === 0 ? 'active' : ''}" style="transform: translateX(${idx * 100}%)">
-                            <img src="${img}" alt="${product.name}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 5rem; display: flex; align-items: center; justify-content: center; height: 100%\\'>${product.emoji || '🛍️'}</div>';">
+        return `
+            <div class="product-card" onclick="showProduct(${p.id})">
+                <div class="product-image">
+                    <button class="favorite-btn ${state.favorites.includes(p.id) ? 'active' : ''}" 
+                            onclick="event.stopPropagation(); toggleFavorite(${p.id})">♡</button>
+                    ${images.length ? `
+                        <div class="product-image-gallery" data-product-id="${p.id}">
+                            <div class="product-image-slides">
+                                ${images.map((img, i) => `
+                                    <div class="product-image-slide ${i === 0 ? 'active' : ''}" style="transform: translateX(${i * 100}%)">
+                                        <img src="${img}" alt="${p.name}" onerror="this.parentElement.innerHTML='<div class=product-emoji>${p.emoji || '🛍️'}</div>'">
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ${hasMultiple ? `<div class="product-image-indicators">${images.map((_, i) => `<span class="product-image-dot ${i === 0 ? 'active' : ''}"></span>`).join('')}</div>` : ''}
                         </div>
-                    `).join('')}
-                </div>
-                ${hasMultipleImages ? `<div class="product-image-indicators" data-product-id="${product.id}">
-                    ${allImages.map((_, idx) => `<span class="product-image-dot ${idx === 0 ? 'active' : ''}"></span>`).join('')}
-                </div>` : ''}
-               </div>`
-            : `<div class="product-emoji">${product.emoji || '🛍️'}</div>`;
-        
-        return `
-            <div class="product-card" onclick="showProduct(${product.id})">
-                <div class="product-image">
-                    <button class="favorite-btn ${state.favorites.includes(product.id) ? 'active' : ''}" 
-                            onclick="event.stopPropagation(); toggleFavorite(${product.id})">
-                        ♡
-                    </button>
-                    ${imageContent}
+                    ` : `<div class="product-emoji">${p.emoji || '🛍️'}</div>`}
                 </div>
                 <div class="product-info">
-                    <div class="product-name">${product.name}</div>
-                    <div class="product-price">${formatPrice(product.price)}</div>
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">${formatPrice(p.price)}</div>
                 </div>
             </div>
         `;
     }).join('');
     
-    // Инициализация свайпа для превью товаров
-    if (filtered.length > 0) {
-        setTimeout(() => initProductImageSwipes(), 50);
-    }
+    setTimeout(initProductSwipes, 50);
 }
 
-/**
- * Рендеринг избранных товаров
- * Показывает товары из favorites или пустое состояние с уточкой
- */
 function renderFavorites() {
-    const favoriteProducts = state.products.filter(p => state.favorites.includes(p.id));
-    const grid = document.getElementById('favoriteProducts');
-    const empty = document.getElementById('emptyFavorites');
-    const stickerEl = document.getElementById('emptyFavoritesSticker');
+    const favs = state.products.filter(p => state.favorites.includes(p.id));
+    const grid = $('#favoriteProducts');
+    const empty = $('#emptyFavorites');
     
-    if (favoriteProducts.length === 0) {
+    if (!favs.length) {
         grid.innerHTML = '';
         empty.classList.add('active');
-        // Показываем анимированную уточку из Telegram
-        if (stickerEl && !stickerEl.hasAttribute('data-sticker-loaded')) {
-            showTelegramDuck(stickerEl);
-            stickerEl.setAttribute('data-sticker-loaded', 'true');
-        }
         return;
     }
     
     empty.classList.remove('active');
-    grid.innerHTML = favoriteProducts.map(product => {
-        const imageContent = product.image 
-            ? `<img src="${product.image}" alt="${product.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-               <div class="product-emoji" style="display:none;">${product.emoji || '🛍️'}</div>`
-            : `<div class="product-emoji">${product.emoji || '🛍️'}</div>`;
-    
-        return `
-            <div class="product-card" onclick="showProduct(${product.id})">
-                <div class="product-image">
-                    <button class="favorite-btn active" onclick="event.stopPropagation(); toggleFavorite(${product.id})">
-                        ♡
-                    </button>
-                    ${imageContent}
-                </div>
-                <div class="product-info">
-                    <div class="product-name">${product.name}</div>
-                    <div class="product-price">${formatPrice(product.price)}</div>
-                </div>
+    grid.innerHTML = favs.map(p => `
+        <div class="product-card" onclick="showProduct(${p.id})">
+            <div class="product-image">
+                <button class="favorite-btn active" onclick="event.stopPropagation(); toggleFavorite(${p.id})">♡</button>
+                ${p.image ? `<img src="${p.image}" alt="${p.name}">` : `<div class="product-emoji">${p.emoji || '🛍️'}</div>`}
             </div>
-        `;
-    }).join('');
+            <div class="product-info">
+                <div class="product-name">${p.name}</div>
+                <div class="product-price">${formatPrice(p.price)}</div>
+            </div>
+        </div>
+    `).join('');
 }
 
-/**
- * Отображение анимированной уточки из Telegram
- * Пытается загрузить стикер, при ошибке показывает эмодзи
- * @param {HTMLElement} container - Контейнер для уточки
- */
-function showTelegramDuck(container) {
-    // Популярная уточка из Telegram - используем несколько вариантов для надежности
-    const stickerUrls = [
-        'https://tlgrm.ru/_/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/1.webp',
-        'https://cdn.tlgrm.app/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/192/1.webp',
-        'https://tlgrm.ru/_/stickers/ccd/8dd/ccd8dd5d-d10b-4177-ae89-f3ba9b4fb01b/192/1.webp'
-    ];
-    
-    // Пробуем загрузить стикер, если не получается - показываем эмодзи уточки
-    const img = document.createElement('img');
-    img.src = stickerUrls[0];
-    img.alt = 'Уточка';
-    img.className = 'telegram-sticker';
-    img.onerror = function() {
-        // Если стикер не загрузился, пробуем следующий URL
-        if (stickerUrls.length > 1) {
-            this.src = stickerUrls[1];
-            this.onerror = function() {
-                if (stickerUrls.length > 2) {
-                    this.src = stickerUrls[2];
-                    this.onerror = function() {
-                        // Если все не удалось, показываем большую уточку эмодзи
-                        container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
-                    };
-                } else {
-                    container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
-                }
-            };
-        } else {
-            container.innerHTML = '<div style="font-size: 8rem; animation: duckBounce 2s ease-in-out infinite;">🦆</div>';
-        }
-    };
-    container.innerHTML = '';
-    container.appendChild(img);
-}
-
-/**
- * Рендеринг корзины
- * Отображает товары в корзине, подсчитывает итоговую сумму
- * Показывает пустое состояние с уточкой если корзина пуста
- */
 function renderCart() {
-    const cartItems = document.getElementById('cartItems');
-    const empty = document.getElementById('emptyCart');
-    const stickerEl = document.getElementById('emptyCartSticker');
-    const footer = document.getElementById('cartFooter');
-    const checkoutBar = document.getElementById('checkoutBar');
+    const items = $('#cartItems');
+    const empty = $('#emptyCart');
+    const footer = $('#cartFooter');
+    const checkout = $('#checkoutBar');
     
-    if (state.cart.length === 0) {
-        cartItems.innerHTML = '';
+    if (!state.cart.length) {
+        items.innerHTML = '';
         empty.classList.add('active');
         footer.classList.remove('active');
-        checkoutBar.classList.remove('active');
-        // Показываем анимированную уточку из Telegram
-        if (stickerEl && !stickerEl.hasAttribute('data-sticker-loaded')) {
-            showTelegramDuck(stickerEl);
-            stickerEl.setAttribute('data-sticker-loaded', 'true');
-        }
+        checkout.classList.remove('active');
         return;
     }
     
     empty.classList.remove('active');
     footer.classList.add('active');
-    checkoutBar.classList.add('active');
+    checkout.classList.add('active');
     
-    // Render cart items
-    cartItems.innerHTML = state.cart.map((item, index) => {
-        const product = state.products.find(p => p.id === item.id) || item;
-        const imageContent = product.image 
-            ? `<img src="${product.image}" alt="${product.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-               <div class="product-emoji" style="display:none;">${product.emoji || '🛍️'}</div>`
-            : `${product.emoji || '🛍️'}`;
-        
-        const sizeText = item.size ? ` • Размер: ${item.size}` : '';
-        const itemKey = item.size ? `${item.id}_${item.size}` : item.id;
-        
+    items.innerHTML = state.cart.map((item, i) => {
+        const p = state.products.find(x => x.id === item.id) || item;
         return `
-            <div class="cart-item" data-cart-key="${itemKey}">
-                <div class="cart-item-image">${imageContent}</div>
+            <div class="cart-item">
+                <div class="cart-item-image">${p.image ? `<img src="${p.image}">` : p.emoji || '🛍️'}</div>
                 <div class="cart-item-info">
-                    <div class="cart-item-name">${product.name}${sizeText}</div>
-                    <div class="cart-item-desc">${product.description || ''}</div>
+                    <div class="cart-item-name">${p.name}${item.size ? ` • ${item.size}` : ''}</div>
+                    <div class="cart-item-desc">${p.description || ''}</div>
                     <div class="cart-item-bottom">
                         <div class="cart-controls">
-                            <button class="qty-btn" onclick="changeQuantityByIndex(${index}, -1)">−</button>
+                            <button class="qty-btn" onclick="changeQty(${i}, -1)">−</button>
                             <span class="qty-value">${item.quantity}</span>
-                            <button class="qty-btn" onclick="changeQuantityByIndex(${index}, 1)">+</button>
+                            <button class="qty-btn" onclick="changeQty(${i}, 1)">+</button>
                         </div>
-                        <div class="cart-item-price">${formatPrice(product.price)}</div>
+                        <div class="cart-item-price">${formatPrice(p.price)}</div>
                     </div>
                 </div>
             </div>
         `;
     }).join('');
     
-    // Calculate totals
-    const itemCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
-    const total = state.cart.reduce((sum, item) => {
-        const product = state.products.find(p => p.id === item.id) || item;
-        return sum + (product.price * item.quantity);
-    }, 0);
+    const count = state.cart.reduce((s, i) => s + i.quantity, 0);
+    const total = state.cart.reduce((s, i) => s + (state.products.find(p => p.id === i.id)?.price || i.price) * i.quantity, 0);
     
-    // Update summary
-    document.getElementById('cartItemCount').textContent = itemCount;
-    document.getElementById('cartSubtotal').textContent = formatPrice(total);
-    document.getElementById('cartTotal').textContent = formatPrice(total);
-    document.getElementById('checkoutPrice').textContent = formatPrice(total);
+    $('#cartItemCount').textContent = count;
+    $('#cartSubtotal').textContent = formatPrice(total);
+    $('#cartTotal').textContent = formatPrice(total);
+    $('#checkoutPrice').textContent = formatPrice(total);
 }
 
-/**
- * Добавить товар в корзину
- * Поддерживает размеры для одежды
- * Если товар уже есть, увеличивает количество
- * @param {number} productId - ID товара
- * @param {string|null} size - Размер (для одежды)
- */
-function addToCart(productId, size = null) {
-    const product = state.products.find(p => p.id === productId);
-    if (!product) return;
+// === КОРЗИНА И ИЗБРАННОЕ ===
+
+function addToCart(id, size = null) {
+    const p = state.products.find(x => x.id === id);
+    if (!p) return;
     
-    // Create unique key for cart item (productId + size)
-    const cartKey = size ? `${productId}_${size}` : productId;
-    
-    const existing = state.cart.find(item => {
-        const itemKey = item.size ? `${item.id}_${item.size}` : item.id;
-        return itemKey === cartKey;
-    });
+    const key = size ? `${id}_${size}` : id;
+    const existing = state.cart.find(i => (i.size ? `${i.id}_${i.size}` : i.id) === key);
     
     if (existing) {
         existing.quantity++;
-        } else {
-        state.cart.push({ 
-            id: productId, 
-            quantity: 1, 
-            size: size,
-            ...product 
-        });
-    }
-    saveCart();
-    updateUI();
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-}
-
-/**
- * Изменить количество товара в корзине
- * @param {number} productId - ID товара
- * @param {number} delta - Изменение количества (+1 или -1)
- */
-function changeQuantity(productId, delta) {
-    const item = state.cart.find(i => i.id === productId);
-    if (!item) return;
-    
-    item.quantity += delta;
-    if (item.quantity <= 0) {
-        state.cart = state.cart.filter(i => i.id !== productId);
+    } else {
+        state.cart.push({ id, quantity: 1, size, ...p });
     }
     
     saveCart();
-        renderCart();
     updateUI();
+    haptic();
 }
 
-/**
- * Изменить количество товара по индексу (для товаров с размерами)
- * @param {number} index - Индекс товара в массиве корзины
- * @param {number} delta - Изменение количества
- */
-function changeQuantityByIndex(index, delta) {
+function changeQty(index, delta) {
     if (index < 0 || index >= state.cart.length) return;
-    
-    const item = state.cart[index];
-    item.quantity += delta;
-    if (item.quantity <= 0) {
-        state.cart.splice(index, 1);
-    }
-    
+    state.cart[index].quantity += delta;
+    if (state.cart[index].quantity <= 0) state.cart.splice(index, 1);
     saveCart();
-        renderCart();
+    renderCart();
     updateUI();
 }
 
-/**
- * Переключить избранное
- * Добавляет/удаляет товар из избранного
- * @param {number} productId - ID товара
- */
-function toggleFavorite(productId) {
-    const index = state.favorites.indexOf(productId);
-    if (index > -1) {
-        state.favorites.splice(index, 1);
-        } else {
-        state.favorites.push(productId);
-    }
+function toggleFavorite(id) {
+    const idx = state.favorites.indexOf(id);
+    idx > -1 ? state.favorites.splice(idx, 1) : state.favorites.push(id);
     saveFavorites();
     renderProducts();
     renderFavorites();
     updateUI();
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    haptic();
 }
 
-// Clear favorites
-document.getElementById('clearFavorites').addEventListener('click', () => {
-    if (state.favorites.length === 0) return;
-    state.favorites = [];
-    saveFavorites();
-    renderFavorites();
-    updateUI();
-});
+// === МОДАЛЬНОЕ ОКНО ===
 
-// Clear cart
-document.getElementById('clearCart').addEventListener('click', () => {
-    if (state.cart.length === 0) return;
-    if (tg.showConfirm) {
-        tg.showConfirm('Очистить корзину?', (confirmed) => {
-            if (confirmed) {
-                state.cart = [];
-                saveCart();
-                renderCart();
-                updateUI();
-            }
-        });
-    } else {
-        state.cart = [];
-        saveCart();
-        renderCart();
-        updateUI();
-    }
-});
-
-// ==================== МОДАЛЬНОЕ ОКНО ТОВАРА ====================
-
-/**
- * Состояние модального окна товара
- */
-let modalState = {
-    productId: null,
-    selectedSize: null,
-    quantity: 1,
-    currentImageIndex: 0,
-    images: [],
-    touchStartX: 0,
-    touchEndX: 0
-};
-
-/**
- * Показать модальное окно товара
- * Загружает данные товара, настраивает галерею, размеры, описание
- * @param {number} productId - ID товара
- */
-function showProduct(productId) {
-    const product = state.products.find(p => p.id === productId);
-    if (!product) return;
+function showProduct(id) {
+    const p = state.products.find(x => x.id === id);
+    if (!p) return;
     
-    modalState.productId = productId;
-    modalState.selectedSize = null;
-    modalState.quantity = 1;
-    modalState.currentImageIndex = 0;
+    Object.assign(modalState, { productId: id, selectedSize: null, quantity: 1, currentImageIndex: 0 });
+    modalState.images = [p.image, ...(p.images || [])].filter(Boolean);
     
-    // Prepare images array
-    const allImages = [];
-    if (product.image) {
-        allImages.push(product.image);
-    }
-    if (product.images && Array.isArray(product.images)) {
-        allImages.push(...product.images);
-    }
-    modalState.images = allImages;
-    console.log('Total images for product:', modalState.images.length, modalState.images);
+    const container = $('#modalImageContainer');
+    const imageEl = $('#modalImage');
     
-    // Show images with swipe support
-    const modalImageEl = document.getElementById('modalImage');
-    const modalImageContainer = document.getElementById('modalImageContainer');
-    
-    // Wait for container to be rendered to get correct width
     setTimeout(() => {
-        const containerWidth = modalImageContainer.offsetWidth || window.innerWidth;
+        const w = container.offsetWidth || window.innerWidth;
         
-        if (modalState.images.length > 0) {
-            modalImageEl.style.display = 'flex';
-            modalImageEl.style.width = `${modalState.images.length * containerWidth}px`;
-            modalImageEl.style.transform = 'translateX(0)';
-            
-            modalImageEl.innerHTML = modalState.images.map((img, index) => `
-                <div class="modal-image-slide" style="width: ${containerWidth}px; min-width: ${containerWidth}px;">
-                    <img src="${img}" alt="${product.name}" 
-                 onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size: 8rem\\'>${product.emoji || '🛍️'}</div>';">
+        if (modalState.images.length) {
+            imageEl.style.width = `${modalState.images.length * w}px`;
+            imageEl.style.transform = 'translateX(0)';
+            imageEl.innerHTML = modalState.images.map((img, i) => `
+                <div class="modal-image-slide" style="width:${w}px;min-width:${w}px">
+                    <img src="${img}" alt="${p.name}" onerror="this.parentElement.innerHTML='<div style=font-size:8rem>${p.emoji || '🛍️'}</div>'">
                 </div>
             `).join('');
-    } else {
-            modalImageEl.style.display = 'flex';
-            modalImageEl.style.width = `${containerWidth}px`;
-            modalImageEl.innerHTML = `<div class="modal-image-slide" style="width: ${containerWidth}px; min-width: ${containerWidth}px;"><div style="font-size: 8rem">${product.emoji || '🛍️'}</div></div>`;
+        } else {
+            imageEl.style.width = `${w}px`;
+            imageEl.innerHTML = `<div class="modal-image-slide" style="width:${w}px"><div style="font-size:8rem">${p.emoji || '🛍️'}</div></div>`;
         }
         
-        // Update indicators after images are loaded
         updateImageIndicators();
         setupSwipeHandlers();
-        setupModalImageClickHandlers(); // Добавляем клики по бокам
+        setupImageClickZones();
     }, 50);
     
+    // Избранное
+    $('#modalFavoriteBtn').classList.toggle('active', state.favorites.includes(id));
     
-    // Update favorite button
-    const favoriteBtn = document.getElementById('modalFavoriteBtn');
-    favoriteBtn.classList.toggle('active', state.favorites.includes(productId));
-    
-    // Size selection (show only for clothing items)
-    const sizeSection = document.getElementById('modalSizeSection');
-    const sizesContainer = document.getElementById('modalSizes');
-    const isClothing = product.specs?.some(spec => spec.toLowerCase().includes('размер') || spec.toLowerCase().includes('кро')) || 
-                       product.name.toLowerCase().includes('рубашка') || 
-                       product.name.toLowerCase().includes('куртка') ||
-                       product.name.toLowerCase().includes('штаны');
+    // Размеры (для одежды)
+    const sizeSection = $('#modalSizeSection');
+    const sizesEl = $('#modalSizes');
+    const isClothing = p.specs?.some(s => /размер|кро/i.test(s)) || /рубашка|куртка|штаны/i.test(p.name);
     
     if (isClothing) {
         sizeSection.style.display = 'block';
-        const sizes = ['S', 'M', 'L', 'XL'];
-        sizesContainer.innerHTML = sizes.map(size => 
-            `<button class="modal-size-btn" data-size="${size}">${size}</button>`
-        ).join('');
+        sizesEl.innerHTML = ['S', 'M', 'L', 'XL'].map(s => `<button class="modal-size-btn" data-size="${s}">${s}</button>`).join('');
+        sizesEl.querySelector('.modal-size-btn')?.classList.add('active');
+        modalState.selectedSize = 'S';
         
-        // Select first size by default
-        const firstSizeBtn = sizesContainer.querySelector('.modal-size-btn');
-        if (firstSizeBtn) {
-            firstSizeBtn.classList.add('active');
-            modalState.selectedSize = 'S';
-        }
-        
-        // Size button handlers
-        sizesContainer.querySelectorAll('.modal-size-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                sizesContainer.querySelectorAll('.modal-size-btn').forEach(b => b.classList.remove('active'));
+        sizesEl.querySelectorAll('.modal-size-btn').forEach(btn => {
+            btn.onclick = () => {
+                sizesEl.querySelectorAll('.modal-size-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 modalState.selectedSize = btn.dataset.size;
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            });
+                haptic();
+            };
         });
     } else {
         sizeSection.style.display = 'none';
     }
     
-    // Product name and price
-    document.getElementById('modalName').textContent = product.name;
-    document.getElementById('modalPrice').textContent = formatPrice(product.price);
+    // Информация
+    $('#modalName').textContent = p.name;
+    $('#modalPrice').textContent = formatPrice(p.price);
     
-    // Description with read more
-    const descText = product.fullDescription || product.description;
-    const descEl = document.getElementById('modalDesc');
-    descEl.textContent = descText;
+    const desc = p.fullDescription || p.description;
+    const descEl = $('#modalDesc');
+    const readMore = $('#modalReadMore');
+    descEl.textContent = desc;
     descEl.classList.remove('collapsed');
     
-    const readMoreBtn = document.getElementById('modalReadMore');
-    // Check if description is long enough to need "read more"
-    const tempEl = document.createElement('div');
-    tempEl.style.cssText = 'position: absolute; visibility: hidden; width: 100%;';
-    tempEl.textContent = descText;
-    document.body.appendChild(tempEl);
-    const needsReadMore = tempEl.offsetHeight > 60; // Approximate height for 3 lines
-    document.body.removeChild(tempEl);
-    
-    if (needsReadMore) {
-        readMoreBtn.style.display = 'flex';
+    // Проверка длины описания
+    const needsMore = desc.length > 150;
+    readMore.style.display = needsMore ? 'flex' : 'none';
+    if (needsMore) {
         descEl.classList.add('collapsed');
-        readMoreBtn.classList.remove('expanded');
-        readMoreBtn.onclick = () => {
+        readMore.classList.remove('expanded');
+        readMore.onclick = () => {
             descEl.classList.toggle('collapsed');
-            readMoreBtn.classList.toggle('expanded');
+            readMore.classList.toggle('expanded');
         };
-    } else {
-        readMoreBtn.style.display = 'none';
     }
     
-    // Specs
-    const specs = product.specs || [];
-    const specsSection = document.getElementById('modalSpecsSection');
-    if (specs.length > 0) {
+    // Характеристики
+    const specsSection = $('#modalSpecsSection');
+    if (p.specs?.length) {
         specsSection.style.display = 'block';
-    document.getElementById('modalSpecs').innerHTML = specs.map(spec => `<li>${spec}</li>`).join('');
+        $('#modalSpecs').innerHTML = p.specs.map(s => `<li>${s}</li>`).join('');
     } else {
         specsSection.style.display = 'none';
     }
     
-    // Quantity
-    document.getElementById('modalQtyValue').textContent = modalState.quantity;
-    
-    // Show modal
-    const modal = document.getElementById('productModal');
-    modal.classList.add('active');
+    $('#modalQtyValue').textContent = modalState.quantity;
+    $('#productModal').classList.add('active');
     document.body.style.overflow = 'hidden';
+    $('.app').style.display = 'none';
+    $('.nav-bar').style.display = 'none';
     
-    // Hide main app content
-    const app = document.querySelector('.app');
-    if (app) app.style.display = 'none';
-    
-    // Hide navigation bar
-    const navBar = document.querySelector('.nav-bar');
-    if (navBar) navBar.style.display = 'none';
-    
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    haptic();
 }
 
-/**
- * Обновить индикаторы изображений в галерее
- * Показывает номера (1/3, 2/3) и точки для навигации
- */
+function closeModal() {
+    $('#productModal').classList.remove('active');
+    document.body.style.overflow = '';
+    $('.app').style.display = '';
+    $('.nav-bar').style.display = '';
+}
+
 function updateImageIndicators() {
-    const indicatorsEl = document.getElementById('modalImageIndicators');
+    const el = $('#modalImageIndicators');
     if (modalState.images.length <= 1) {
-        indicatorsEl.innerHTML = '';
-        indicatorsEl.style.display = 'none';
+        el.innerHTML = '';
+        el.style.display = 'none';
         return;
     }
     
-    indicatorsEl.style.display = 'flex';
-    
-    // Показываем только точки
-    indicatorsEl.innerHTML = modalState.images.map((_, index) => `
-        <button class="modal-image-indicator ${index === modalState.currentImageIndex ? 'active' : ''}" 
-                onclick="goToImage(${index})"></button>
+    el.style.display = 'flex';
+    el.innerHTML = modalState.images.map((_, i) => `
+        <button class="modal-image-indicator ${i === modalState.currentImageIndex ? 'active' : ''}" onclick="goToImage(${i})"></button>
     `).join('');
 }
 
-/**
- * Перейти к конкретному изображению в галерее
- * @param {number} index - Индекс изображения
- */
 function goToImage(index) {
     if (index < 0 || index >= modalState.images.length) return;
-    
     modalState.currentImageIndex = index;
-    const modalImageEl = document.getElementById('modalImage');
-    const container = document.getElementById('modalImageContainer');
-    if (!container) return;
     
-    const containerWidth = container.offsetWidth;
-    modalImageEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-    modalImageEl.style.transform = `translateX(-${index * containerWidth}px)`;
+    const container = $('#modalImageContainer');
+    const imageEl = $('#modalImage');
+    const w = container.offsetWidth;
+    
+    imageEl.style.transition = 'transform 0.3s ease';
+    imageEl.style.transform = `translateX(-${index * w}px)`;
     
     updateImageIndicators();
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    haptic();
 }
 
-/**
- * Настройка обработчиков свайпа для галереи
- * Поддерживает touch и mouse события
- * Реализует плавную прокрутку с инерцией
- */
 function setupSwipeHandlers() {
-    const container = document.getElementById('modalImageContainer');
+    const container = $('#modalImageContainer');
     if (!container || modalState.images.length <= 1) return;
     
-    // Remove old listeners by cloning
-    const containerParent = container.parentNode;
+    // Клонируем для удаления старых обработчиков
     const newContainer = container.cloneNode(true);
-    containerParent.replaceChild(newContainer, container);
+    container.parentNode.replaceChild(newContainer, container);
     newContainer.id = 'modalImageContainer';
     
-    const modalImageEl = document.getElementById('modalImage');
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
-    let currentX = 0;
-    let isSwiping = false;
-    let startOffset = 0;
-    let velocity = 0;
-    let lastMoveX = 0;
-    let lastMoveTime = 0;
+    const imageEl = $('#modalImage');
+    let startX = 0, startOffset = 0, currentX = 0, velocity = 0, lastX = 0, lastTime = 0;
+    
+    const handleStart = (x) => {
+        startX = x;
+        startOffset = -modalState.currentImageIndex * newContainer.offsetWidth;
+        currentX = startOffset;
+        lastX = x;
+        lastTime = Date.now();
+        velocity = 0;
+        imageEl.style.transition = 'none';
+    };
+    
+    const handleMove = (x) => {
+        const delta = x - startX;
+        const w = newContainer.offsetWidth;
+        const minX = -(modalState.images.length - 1) * w;
+        
+        let newX = startOffset + delta;
+        if (newX > 0) newX = newX * 0.3;
+        else if (newX < minX) newX = minX + (newX - minX) * 0.3;
+        
+        currentX = newX;
+        imageEl.style.transform = `translateX(${newX}px)`;
+        
+        const now = Date.now();
+        if (now - lastTime > 0) velocity = (x - lastX) / (now - lastTime);
+        lastX = x;
+        lastTime = now;
+    };
+    
+    const handleEnd = () => {
+        const w = newContainer.offsetWidth;
+        const delta = currentX - startOffset;
+        let target = modalState.currentImageIndex;
+        
+        if (Math.abs(velocity) > 0.5) {
+            target = velocity < 0 
+                ? (target + 1) % modalState.images.length 
+                : (target - 1 + modalState.images.length) % modalState.images.length;
+        } else if (Math.abs(delta) > w * 0.25) {
+            target = delta < 0 
+                ? (target + 1) % modalState.images.length 
+                : (target - 1 + modalState.images.length) % modalState.images.length;
+        }
+        
+        goToImage(target);
+    };
     
     // Touch events
-    newContainer.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        touchStartTime = Date.now();
-        isSwiping = true;
-        startOffset = -modalState.currentImageIndex * newContainer.offsetWidth;
-        currentX = startOffset;
-        lastMoveX = touchStartX;
-        lastMoveTime = touchStartTime;
-        velocity = 0;
-        modalImageEl.style.transition = 'none';
-    }, { passive: false });
+    newContainer.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e.touches[0].clientX); }, { passive: false });
+    newContainer.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX); }, { passive: false });
+    newContainer.addEventListener('touchend', handleEnd);
     
-    newContainer.addEventListener('touchmove', (e) => {
-        if (!isSwiping) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        const now = Date.now();
-        const deltaX = touch.clientX - touchStartX;
-        const deltaY = touch.clientY - touchStartY;
-        
-        // Only swipe horizontally if horizontal movement is greater
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-            const containerWidth = newContainer.offsetWidth;
-            const newX = startOffset + deltaX;
-            
-            // Calculate boundaries
-            const minX = -(modalState.images.length - 1) * containerWidth;
-            const maxX = 0;
-            
-            // Apply boundaries with resistance
-            let boundedX = newX;
-            if (newX > maxX) {
-                boundedX = maxX + (newX - maxX) * 0.3; // Resistance at start
-            } else if (newX < minX) {
-                boundedX = minX + (newX - minX) * 0.3; // Resistance at end
-            }
-            
-            currentX = boundedX;
-            modalImageEl.style.transform = `translateX(${boundedX}px)`;
-            
-            // Calculate velocity
-            if (now - lastMoveTime > 0) {
-                velocity = (touch.clientX - lastMoveX) / (now - lastMoveTime);
-            }
-            lastMoveX = touch.clientX;
-            lastMoveTime = now;
-        }
-    }, { passive: false });
-    
-    newContainer.addEventListener('touchend', (e) => {
-        if (!isSwiping) return;
-        isSwiping = false;
-        modalImageEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        
-        const containerWidth = newContainer.offsetWidth;
-        const swipeThreshold = containerWidth * 0.25; // 25% of container width
-        const velocityThreshold = 0.5; // pixels per ms
-        
-        const deltaX = currentX - startOffset;
-        const absDeltaX = Math.abs(deltaX);
-        
-        let targetIndex = modalState.currentImageIndex;
-        
-        // Check velocity-based swipe (циклический)
-        if (Math.abs(velocity) > velocityThreshold) {
-            if (velocity < 0) {
-                // Swipe left - next image (циклически)
-                targetIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
-            } else if (velocity > 0) {
-                // Swipe right - previous image (циклически)
-                targetIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
-            }
-        } 
-        // Check distance-based swipe (циклический)
-        else if (absDeltaX > swipeThreshold) {
-            if (deltaX < 0) {
-                // Swipe left - next image (циклически)
-                targetIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
-            } else if (deltaX > 0) {
-                // Swipe right - previous image (циклически)
-                targetIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
-            }
-        }
-        
-        goToImage(targetIndex);
-    }, { passive: false });
-    
-    newContainer.addEventListener('touchcancel', () => {
-        if (isSwiping) {
-            isSwiping = false;
-            goToImage(modalState.currentImageIndex);
-        }
-    }, { passive: false });
-    
-    // Mouse drag support
+    // Mouse events
     let mouseDown = false;
-    let mouseStartX = 0;
-    let mouseStartTime = 0;
-    let mouseVelocity = 0;
-    let mouseLastX = 0;
-    let mouseLastTime = 0;
-    
-    newContainer.addEventListener('mousedown', (e) => {
-        mouseDown = true;
-        mouseStartX = e.clientX;
-        mouseStartTime = Date.now();
-        startOffset = -modalState.currentImageIndex * newContainer.offsetWidth;
-        currentX = startOffset;
-        mouseLastX = mouseStartX;
-        mouseLastTime = mouseStartTime;
-        mouseVelocity = 0;
-        modalImageEl.style.transition = 'none';
-        newContainer.style.cursor = 'grabbing';
-        e.preventDefault();
-    });
-    
-    newContainer.addEventListener('mousemove', (e) => {
-        if (!mouseDown) return;
-        e.preventDefault();
-        const now = Date.now();
-        const deltaX = e.clientX - mouseStartX;
-        const containerWidth = newContainer.offsetWidth;
-        const newX = startOffset + deltaX;
-        
-        const minX = -(modalState.images.length - 1) * containerWidth;
-        const maxX = 0;
-        
-        let boundedX = newX;
-        if (newX > maxX) {
-            boundedX = maxX + (newX - maxX) * 0.3;
-        } else if (newX < minX) {
-            boundedX = minX + (newX - minX) * 0.3;
-        }
-        
-        currentX = boundedX;
-        modalImageEl.style.transform = `translateX(${boundedX}px)`;
-        
-        if (now - mouseLastTime > 0) {
-            mouseVelocity = (e.clientX - mouseLastX) / (now - mouseLastTime);
-        }
-        mouseLastX = e.clientX;
-        mouseLastTime = now;
-    });
-    
-    newContainer.addEventListener('mouseup', (e) => {
-        if (!mouseDown) return;
-        mouseDown = false;
-        newContainer.style.cursor = 'grab';
-        modalImageEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        
-        const containerWidth = newContainer.offsetWidth;
-        const swipeThreshold = containerWidth * 0.25;
-        const velocityThreshold = 0.5;
-        
-        const deltaX = currentX - startOffset;
-        const absDeltaX = Math.abs(deltaX);
-        
-        let targetIndex = modalState.currentImageIndex;
-        
-        if (Math.abs(mouseVelocity) > velocityThreshold) {
-            if (mouseVelocity < 0 && modalState.currentImageIndex < modalState.images.length - 1) {
-                targetIndex = modalState.currentImageIndex + 1;
-            } else if (mouseVelocity > 0 && modalState.currentImageIndex > 0) {
-                targetIndex = modalState.currentImageIndex - 1;
-            }
-        } else if (absDeltaX > swipeThreshold) {
-            if (deltaX < 0 && modalState.currentImageIndex < modalState.images.length - 1) {
-                targetIndex = modalState.currentImageIndex + 1;
-            } else if (deltaX > 0 && modalState.currentImageIndex > 0) {
-                targetIndex = modalState.currentImageIndex - 1;
-            }
-        }
-        
-        goToImage(targetIndex);
-    });
-    
-    newContainer.addEventListener('mouseleave', () => {
-        if (mouseDown) {
-            mouseDown = false;
-            newContainer.style.cursor = 'grab';
-            goToImage(modalState.currentImageIndex);
-        }
-    });
+    newContainer.addEventListener('mousedown', e => { mouseDown = true; handleStart(e.clientX); e.preventDefault(); });
+    newContainer.addEventListener('mousemove', e => { if (mouseDown) handleMove(e.clientX); });
+    newContainer.addEventListener('mouseup', () => { if (mouseDown) { mouseDown = false; handleEnd(); } });
+    newContainer.addEventListener('mouseleave', () => { if (mouseDown) { mouseDown = false; goToImage(modalState.currentImageIndex); } });
     
     newContainer.style.cursor = 'grab';
 }
 
-/**
- * Настройка кликов по боковым сторонам изображения для переключения
- */
-function setupModalImageClickHandlers() {
-    const container = document.getElementById('modalImageContainer');
+function setupImageClickZones() {
+    const container = $('#modalImageContainer');
     if (!container || modalState.images.length <= 1) return;
     
-    // Удаляем старые обработчики если есть
-    const leftZone = container.querySelector('.modal-image-left-zone');
-    const rightZone = container.querySelector('.modal-image-right-zone');
-    if (leftZone) leftZone.remove();
-    if (rightZone) rightZone.remove();
+    container.querySelectorAll('.modal-image-left-zone, .modal-image-right-zone').forEach(z => z.remove());
     
-    // Создаем зоны для кликов по бокам
-    const leftClickZone = document.createElement('div');
-    leftClickZone.className = 'modal-image-left-zone';
-    leftClickZone.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Циклический переход: перед первым → последнее
-        const prevIndex = (modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length;
-        goToImage(prevIndex);
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    });
+    const leftZone = document.createElement('div');
+    leftZone.className = 'modal-image-left-zone';
+    leftZone.onclick = e => { e.stopPropagation(); goToImage((modalState.currentImageIndex - 1 + modalState.images.length) % modalState.images.length); };
     
-    const rightClickZone = document.createElement('div');
-    rightClickZone.className = 'modal-image-right-zone';
-    rightClickZone.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Циклический переход: после последнего → первое
-        const nextIndex = (modalState.currentImageIndex + 1) % modalState.images.length;
-        goToImage(nextIndex);
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    });
+    const rightZone = document.createElement('div');
+    rightZone.className = 'modal-image-right-zone';
+    rightZone.onclick = e => { e.stopPropagation(); goToImage((modalState.currentImageIndex + 1) % modalState.images.length); };
     
-    container.appendChild(leftClickZone);
-    container.appendChild(rightClickZone);
+    container.appendChild(leftZone);
+    container.appendChild(rightZone);
 }
 
-/**
- * Закрыть модальное окно товара
- * Восстанавливает отображение основного контента
- */
-function closeModal() {
-    const modal = document.getElementById('productModal');
-    modal.classList.remove('active');
-    document.body.style.overflow = '';
-    
-    // Show main app content
-    const app = document.querySelector('.app');
-    if (app) app.style.display = '';
-    
-    // Show navigation bar
-    const navBar = document.querySelector('.nav-bar');
-    if (navBar) navBar.style.display = '';
-}
+// === НАВИГАЦИЯ ===
 
-document.getElementById('modalClose').addEventListener('click', closeModal);
-
-// Modal favorite button
-document.getElementById('modalFavoriteBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (modalState.productId) {
-        toggleFavorite(modalState.productId);
-        const favoriteBtn = document.getElementById('modalFavoriteBtn');
-        favoriteBtn.classList.toggle('active', state.favorites.includes(modalState.productId));
-    }
-});
-
-// Modal share button
-document.getElementById('modalShareBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (tg && tg.shareUrl) {
-        tg.shareUrl(window.location.href);
-    } else if (navigator.share) {
-        navigator.share({
-            title: document.getElementById('modalName').textContent,
-            text: document.getElementById('modalDesc').textContent,
-            url: window.location.href
-        });
-    }
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-});
-
-// Modal quantity controls
-document.getElementById('modalQtyPlus').addEventListener('click', () => {
-    modalState.quantity++;
-    document.getElementById('modalQtyValue').textContent = modalState.quantity;
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-});
-
-document.getElementById('modalQtyMinus').addEventListener('click', () => {
-    if (modalState.quantity > 1) {
-        modalState.quantity--;
-        document.getElementById('modalQtyValue').textContent = modalState.quantity;
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    }
-});
-
-// Modal add to cart button
-document.getElementById('modalAddBtn').addEventListener('click', () => {
-    if (!modalState.productId) return;
-    
-    // Add to cart with quantity
-    for (let i = 0; i < modalState.quantity; i++) {
-        addToCart(modalState.productId, modalState.selectedSize);
-    }
-    
-    closeModal();
-    
-    // Navigate to cart page
-    const cartBtn = document.querySelector('[data-page="cart"]');
-    if (cartBtn) {
-        cartBtn.click();
-    }
-    
-    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-});
-
-// Modal support button
-document.getElementById('modalSupportBtn').addEventListener('click', () => {
-    if (tg && tg.openLink) {
-        // Open Telegram support link or bot
-        tg.openLink('https://t.me/your_support_bot');
-    } else {
-        tg.showAlert('Свяжитесь с нами через Telegram: @your_support_bot');
-    }
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-});
-
-/**
- * Переключение между страницами приложения
- * Обновляет навигацию, показывает/скрывает элементы управления
- * @param {string} page - Название страницы (catalog, favorites, cart, profile)
- */
 function navigateToPage(page) {
-        state.currentPage = page;
-        
-        // Update nav
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    const navBtn = document.querySelector(`[data-page="${page}"]`);
-    if (navBtn) navBtn.classList.add('active');
-        
-        // Update pages
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    const pageEl = document.querySelector(`[data-page="${page}"]`);
-    if (pageEl && pageEl.classList.contains('page')) {
-        pageEl.classList.add('active');
+    state.currentPage = page;
+    
+    $$('.nav-btn').forEach(b => b.classList.remove('active'));
+    $(`.nav-btn[data-page="${page}"]`)?.classList.add('active');
+    
+    $$('.page').forEach(p => p.classList.remove('active'));
+    $(`section[data-page="${page}"]`)?.classList.add('active');
+    
+    const brandsWrapper = $('#brandsWrapper');
+    const searchBtn = $('#searchBtn');
+    const sortMenu = $('#sortMenu');
+    const searchBar = $('#searchBar');
+    const checkoutBar = $('#checkoutBar');
+    
+    if (page === 'catalog') {
+        brandsWrapper.style.display = 'flex';
+        searchBtn.style.display = 'flex';
     } else {
-        const pageSection = document.querySelector(`section[data-page="${page}"]`);
-        if (pageSection) pageSection.classList.add('active');
-    }
-        
-        // Show/hide catalog controls (brands, sort, search)
-        const brandsWrapper = document.getElementById('brandsWrapper');
-        const sortMenu = document.getElementById('sortMenu');
-        const searchBar = document.getElementById('searchBar');
-        const searchBtn = document.getElementById('searchBtn');
-        
-        if (page === 'catalog') {
-            brandsWrapper.style.display = 'flex';
-            searchBtn.style.display = 'flex';
-        } else {
-            brandsWrapper.style.display = 'none';
-            sortMenu.classList.remove('active');
-            searchBar.classList.remove('active');
-            searchBtn.style.display = 'none';
-        }
-        
-        // Show/hide checkout bar
-        const checkoutBar = document.getElementById('checkoutBar');
-        if (page === 'cart' && state.cart.length > 0) {
-            checkoutBar.classList.add('active');
-        } else {
-            checkoutBar.classList.remove('active');
-        }
-        
-        // Render page content
-        if (page === 'favorites') renderFavorites();
-        if (page === 'cart') renderCart();
-        if (page === 'profile') loadProfile();
-        
-        if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-}
-
-// Navigation
-document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const page = btn.dataset.page;
-        navigateToPage(page);
-    });
-});
-
-// Search
-const searchBtn = document.getElementById('searchBtn');
-const searchBar = document.getElementById('searchBar');
-    const searchInput = document.getElementById('searchInput');
-    const searchClear = document.getElementById('searchClear');
-    
-searchBtn.addEventListener('click', () => {
-    if (state.currentPage !== 'catalog') return;
-    searchBar.classList.toggle('active');
-    if (searchBar.classList.contains('active')) {
-        searchInput.focus();
-    } else {
-        searchInput.value = '';
-        state.searchQuery = '';
-        searchClear.classList.remove('active');
-        renderProducts();
-    }
-});
-    
-    searchInput.addEventListener('input', (e) => {
-    state.searchQuery = e.target.value.trim();
-    searchClear.classList.toggle('active', state.searchQuery.length > 0);
-    renderProducts();
-    });
-    
-    searchClear.addEventListener('click', () => {
-        searchInput.value = '';
-    state.searchQuery = '';
-    searchClear.classList.remove('active');
-    renderProducts();
-});
-
-// Sort toggle
-const sortToggleBtn = document.getElementById('sortToggleBtn');
-const sortMenu = document.getElementById('sortMenu');
-
-sortToggleBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    sortMenu.classList.toggle('active');
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-});
-
-// Close sort menu when clicking outside
-document.addEventListener('click', (e) => {
-    if (!sortMenu.contains(e.target) && e.target !== sortToggleBtn) {
+        brandsWrapper.style.display = 'none';
         sortMenu.classList.remove('active');
+        searchBar.classList.remove('active');
+        searchBtn.style.display = 'none';
     }
-});
-
-/**
- * Обновление отображения стрелок сортировки
- * Показывает текущее состояние сортировки для всех опций
- */
-function updateSortArrows() {
-    document.querySelectorAll('.sort-menu-item').forEach(item => {
-        const sort = item.dataset.sort;
-        const arrow = item.querySelector('.sort-arrow');
-        if (!arrow) return;
-        
-        const isActive = state.currentSort === sort;
-        
-        if (isActive) {
-            // Для активной опции показываем текущее направление
-            item.classList.add('active');
-            arrow.textContent = state.sortDirection === 'asc' ? '↑' : '↓';
-        } else {
-            // Для неактивных показываем дефолтное направление
-            item.classList.remove('active');
-            if (sort === 'date') {
-                arrow.textContent = '↓'; // По умолчанию новые сверху
-            } else {
-                arrow.textContent = '↑'; // По умолчанию по возрастанию
-            }
-        }
-    });
+    
+    checkoutBar.classList.toggle('active', page === 'cart' && state.cart.length > 0);
+    
+    if (page === 'favorites') renderFavorites();
+    if (page === 'cart') renderCart();
+    if (page === 'profile') loadProfile();
+    
+    tg.HapticFeedback?.selectionChanged();
 }
 
-/**
- * Инициализация обработчиков сортировки
- * Вызывается после загрузки DOM
- */
-function initSortHandlers() {
-    /**
-     * Обработка выбора поля сортировки
-     */
-    document.querySelectorAll('.sort-menu-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            // Игнорируем клик по кнопке направления
-            if (e.target.closest('.sort-direction-btn')) return;
-            
-            const sort = item.dataset.sort;
-            
-            // Если уже выбрано это поле, переключаем направление
-            if (state.currentSort === sort) {
-                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                // Иначе выбираем новое поле с дефолтным направлением
-                state.currentSort = sort;
-                // Для даты по умолчанию desc (новые сверху), для остальных asc
-                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
-            }
-            
-            updateSortArrows();
-            renderProducts();
-            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-        });
-    });
+// === ПРОФИЛЬ ===
 
-    /**
-     * Обработка кнопок изменения направления сортировки
-     */
-    document.querySelectorAll('.sort-direction-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Предотвращаем срабатывание клика на родителе
-            
-            const sort = btn.dataset.sort;
-            
-            // Если это активное поле, переключаем направление
-            if (state.currentSort === sort) {
-                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                // Иначе выбираем это поле
-                state.currentSort = sort;
-                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
-            }
-            
-            updateSortArrows();
-            renderProducts();
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        });
-    });
-    
-    // Инициализация стрелок при загрузке
-    updateSortArrows();
-}
-
-/**
- * Оформление заказа
- * Отправляет данные заказа на сервер через Telegram WebApp API
- */
-document.getElementById('checkoutBtn').addEventListener('click', async () => {
-    if (state.cart.length === 0) return;
-    
-    const orderData = {
-        items: state.cart.map(item => ({
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity
-        })),
-        total: state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-        userId: tg.initDataUnsafe?.user?.id || 'unknown',
-        userName: tg.initDataUnsafe?.user?.first_name || 'Гость',
-        timestamp: new Date().toISOString()
-    };
-    
-    try {
-        await fetch('/api/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderData)
-        });
-        
-        tg.showAlert('✅ Заказ оформлен! Мы свяжемся с вами.');
-        state.cart = [];
-        saveCart();
-        renderCart();
-        updateUI();
-        
-        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    } catch (error) {
-        console.error('Checkout error:', error);
-        tg.showAlert('❌ Ошибка оформления заказа');
-    }
-});
-
-// Random emoji for avatar
-const avatarEmojis = ['😀', '😎', '🤩', '😇', '🥳', '🤗', '😊', '🙂', '😌', '🤓', '🧐', '🤠', '🥸', '😏', '👽', '🤖', '👾', '🎃', '🎭', '🎨'];
-
-function getRandomEmoji() {
-    return avatarEmojis[Math.floor(Math.random() * avatarEmojis.length)];
-}
-
-/**
- * Загрузка профиля пользователя
- * Получает данные из Telegram WebApp API
- * Отображает имя, username, аватар, загружает заказы
- */
 function loadProfile() {
     const user = tg.initDataUnsafe?.user;
     
-    // Get or create stored emoji for consistency
-    let userEmoji = localStorage.getItem('userEmoji');
-    if (!userEmoji) {
-        userEmoji = getRandomEmoji();
-        localStorage.setItem('userEmoji', userEmoji);
+    let emoji = localStorage.getItem('userEmoji');
+    if (!emoji) {
+        const emojis = ['😀', '😎', '🤩', '😇', '🥳', '🤗', '😊', '🙂', '😌', '🤓'];
+        emoji = emojis[Math.floor(Math.random() * emojis.length)];
+        localStorage.setItem('userEmoji', emoji);
     }
     
-    // Name
-    let displayName = 'Гость';
-    if (user && (user.first_name || user.last_name)) {
-        displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-    }
-    document.getElementById('profileName').textContent = displayName;
+    const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Гость' : 'Гость';
+    const username = user?.username ? `@${user.username}` : '@bitter228';
     
-    // Username
-    let displayUsername = '@bitter228';
-    if (user && user.username) {
-        displayUsername = `@${user.username}`;
-    }
-    document.getElementById('profileUsername').textContent = displayUsername;
+    $('#profileName').textContent = name;
+    $('#profileUsername').textContent = username;
+    $('#profileId').textContent = user?.id || '—';
     
-    // User ID
-    if (user && user.id) {
-        document.getElementById('profileId').textContent = user.id;
-    } else {
-        document.getElementById('profileId').textContent = '—';
-    }
+    const avatar = $('#profileAvatar');
+    avatar.style.backgroundImage = user?.photo_url ? `url(${user.photo_url})` : 'none';
+    avatar.textContent = user?.photo_url ? '' : (user?.first_name?.[0] || emoji);
     
-    // Avatar - try to get photo URL from Telegram, otherwise use emoji or initials
-    const avatarEl = document.getElementById('profileAvatar');
-    let avatarContent = userEmoji;
-    
-    // Reset background image styles
-    avatarEl.style.backgroundImage = 'none';
-    
-    if (user && user.photo_url) {
-        // If Telegram provides photo URL
-        avatarEl.style.backgroundImage = `url(${user.photo_url})`;
-        avatarEl.textContent = '';
-    } else if (user && (user.first_name || user.last_name)) {
-        // Use initials if name exists
-        const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
-        if (initials) {
-            avatarContent = initials;
-        }
-        avatarEl.textContent = avatarContent;
-    } else {
-        // Use random emoji
-        avatarEl.textContent = avatarContent;
-    }
-    
-    // Load orders
-    const userId = user?.id || 'guest';
-    loadOrders(userId);
+    loadOrders(user?.id || 'guest');
 }
 
-/**
- * Загрузка истории заказов пользователя
- * @param {string|number} userId - ID пользователя
- */
 async function loadOrders(userId) {
     try {
         const res = await fetch(`/api/orders/${userId}`);
-        const data = await res.json();
-        const orders = data.orders || [];
+        const { orders = [] } = await res.json();
         
-        const list = document.getElementById('ordersList');
-        const empty = document.getElementById('emptyOrders');
+        const list = $('#ordersList');
+        const empty = $('#emptyOrders');
         
-        if (orders.length === 0) {
+        if (!orders.length) {
             list.classList.remove('active');
             empty.classList.add('active');
             return;
@@ -1376,295 +577,291 @@ async function loadOrders(userId) {
         
         empty.classList.remove('active');
         list.classList.add('active');
-        
-        list.innerHTML = orders.map(order => `
+        list.innerHTML = orders.map(o => `
             <div class="order-item">
-                <div class="order-number">Заказ #${order.order_number}</div>
-                <div class="order-date">${new Date(order.created_at).toLocaleDateString('ru-RU')}</div>
+                <div class="order-number">Заказ #${o.order_number}</div>
+                <div class="order-date">${new Date(o.created_at).toLocaleDateString('ru-RU')}</div>
             </div>
         `).join('');
-    } catch (error) {
-        console.error('Error loading orders:', error);
-    }
+    } catch {}
 }
 
-/**
- * Обновление UI элементов
- * Обновляет бейджи корзины и избранного
- */
+// === СОРТИРОВКА ===
+
+function updateSortArrows() {
+    $$('.sort-menu-item').forEach(item => {
+        const sort = item.dataset.sort;
+        const arrow = item.querySelector('.sort-arrow');
+        if (!arrow) return;
+        
+        const isActive = state.currentSort === sort;
+        item.classList.toggle('active', isActive);
+        
+        if (isActive) {
+            arrow.textContent = state.sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            arrow.textContent = sort === 'date' ? '↓' : '↑';
+        }
+    });
+}
+
+function initSortHandlers() {
+    $$('.sort-menu-item').forEach(item => {
+        item.onclick = e => {
+            if (e.target.closest('.sort-direction-btn')) return;
+            
+            const sort = item.dataset.sort;
+            if (state.currentSort === sort) {
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.currentSort = sort;
+                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+            }
+            
+            updateSortArrows();
+            renderProducts();
+            tg.HapticFeedback?.selectionChanged();
+        };
+    });
+    
+    $$('.sort-direction-btn').forEach(btn => {
+        btn.onclick = e => {
+            e.stopPropagation();
+            const sort = btn.dataset.sort;
+            
+            if (state.currentSort === sort) {
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.currentSort = sort;
+                state.sortDirection = sort === 'date' ? 'desc' : 'asc';
+            }
+            
+            updateSortArrows();
+            renderProducts();
+            haptic();
+        };
+    });
+    
+    updateSortArrows();
+}
+
+// === СВАЙП ПРЕВЬЮ ===
+
+function initProductSwipes() {
+    $$('.product-image-gallery').forEach(gallery => {
+        const id = parseInt(gallery.dataset.productId);
+        const p = state.products.find(x => x.id === id);
+        if (!p) return;
+        
+        const images = [p.image, ...(p.images || [])].filter(Boolean);
+        if (images.length <= 1) return;
+        
+        const slides = gallery.querySelectorAll('.product-image-slide');
+        const dots = gallery.querySelectorAll('.product-image-dot');
+        let current = 0;
+        
+        const update = () => {
+            slides.forEach((s, i) => {
+                s.classList.toggle('active', i === current);
+                s.style.transform = `translateX(${(i - current) * 100}%)`;
+            });
+            dots.forEach((d, i) => d.classList.toggle('active', i === current));
+        };
+        
+        let startX = 0;
+        
+        gallery.addEventListener('touchstart', e => { e.stopPropagation(); startX = e.touches[0].clientX; }, { passive: true });
+        gallery.addEventListener('touchend', e => {
+            e.stopPropagation();
+            const delta = startX - e.changedTouches[0].clientX;
+            if (Math.abs(delta) > 50) {
+                current = delta > 0 ? (current + 1) % images.length : (current - 1 + images.length) % images.length;
+                update();
+                haptic();
+            }
+        }, { passive: true });
+        
+        // Зоны кликов
+        const left = document.createElement('div');
+        left.className = 'product-image-left-zone';
+        left.onclick = e => { e.stopPropagation(); current = (current - 1 + images.length) % images.length; update(); haptic(); };
+        
+        const right = document.createElement('div');
+        right.className = 'product-image-right-zone';
+        right.onclick = e => { e.stopPropagation(); current = (current + 1) % images.length; update(); haptic(); };
+        
+        gallery.appendChild(left);
+        gallery.appendChild(right);
+    });
+}
+
+// === UI ===
+
 function updateUI() {
-    // Cart badge
-    const cartCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
-    const cartBadge = document.getElementById('cartBadge');
+    const cartCount = state.cart.reduce((s, i) => s + i.quantity, 0);
+    const cartBadge = $('#cartBadge');
     cartBadge.textContent = cartCount;
     cartBadge.classList.toggle('active', cartCount > 0);
     
-    // Favorites badge
-    const favBadge = document.getElementById('favoritesBadge');
+    const favBadge = $('#favoritesBadge');
     favBadge.textContent = state.favorites.length;
     favBadge.classList.toggle('active', state.favorites.length > 0);
 }
 
-/**
- * Сохранение корзины в localStorage
- */
-function saveCart() {
-    localStorage.setItem('cart', JSON.stringify(state.cart));
-}
+// === СОБЫТИЯ ===
 
-/**
- * Сохранение избранного в localStorage
- */
-function saveFavorites() {
-    localStorage.setItem('favorites', JSON.stringify(state.favorites));
-}
-
-/**
- * Форматирование цены в рубли
- * @param {number} price - Цена
- * @returns {string} Отформатированная цена
- */
-function formatPrice(price) {
-    return new Intl.NumberFormat('ru-RU', {
-        style: 'currency',
-        currency: 'RUB',
-        minimumFractionDigits: 0
-    }).format(price);
-}
-
-/**
- * Инициализация видимости элементов управления
- * Показывает/скрывает элементы в зависимости от страницы
- */
-function initPageControls() {
-    // By default, show only catalog controls (since catalog is the initial page)
-    const brandsWrapper = document.getElementById('brandsWrapper');
-    const searchBtn = document.getElementById('searchBtn');
-    const checkoutBar = document.getElementById('checkoutBar');
-    
-    brandsWrapper.style.display = 'flex';
-    searchBtn.style.display = 'flex';
-    checkoutBar.classList.remove('active');
-}
-
-/**
- * Обработчик клавиши ESC
- * Навигация назад: закрывает модальное окно → меню сортировки → поиск → сброс фильтров → возврат на каталог
- * Предотвращает закрытие Web App
- */
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' || e.key === 'Esc') {
-        // Всегда предотвращаем закрытие приложения
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // 1. Закрыть модальное окно товара, если открыто
-        const modal = document.getElementById('productModal');
-        if (modal && modal.classList.contains('active')) {
-            closeModal();
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            return;
-        }
-        
-        // 2. Закрыть меню сортировки, если открыто
-        const sortMenu = document.getElementById('sortMenu');
-        if (sortMenu && sortMenu.classList.contains('active')) {
-            sortMenu.classList.remove('active');
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            return;
-        }
-        
-        // 3. Закрыть поиск, если открыт
-        const searchBar = document.getElementById('searchBar');
-        if (searchBar && searchBar.classList.contains('active')) {
-            searchBar.classList.remove('active');
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) {
-                searchInput.value = '';
-                state.searchQuery = '';
-                renderProducts();
-            }
-            const searchClear = document.getElementById('searchClear');
-            if (searchClear) searchClear.classList.remove('active');
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            return;
-        }
-        
-        // 4. Сбросить фильтр бренда на "Все", если выбран другой бренд
-        if (state.currentPage === 'catalog' && state.currentBrand !== 'all') {
-            state.currentBrand = 'all';
-            renderBrands();
-            renderProducts();
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            return;
-        }
-        
-        // 5. Вернуться на каталог с любой страницы
-        if (state.currentPage !== 'catalog') {
-            navigateToPage('catalog');
-        }
-        // Если уже на каталоге и ничего не открыто - ESC предотвращает закрытие приложения, но ничего не делает
-    }
-});
-
-// ==================== ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ====================
-
-/**
- * Инициализация приложения при загрузке DOM
- * Настраивает начальное состояние, загружает товары и профиль
- */
 document.addEventListener('DOMContentLoaded', () => {
-    initPageControls();
-    // Убеждаемся, что каталог активен при загрузке
-    state.currentPage = 'catalog';
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelector('[data-page="catalog"]').classList.add('active');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    const catalogNavBtn = document.querySelector('[data-page="catalog"]');
-    if (catalogNavBtn) catalogNavBtn.classList.add('active');
+    // Навигация
+    $$('.nav-btn').forEach(btn => {
+        btn.onclick = () => navigateToPage(btn.dataset.page);
+    });
     
-    // Инициализация обработчиков сортировки
+    // Поиск
+    $('#searchBtn').onclick = () => {
+        if (state.currentPage !== 'catalog') return;
+        const bar = $('#searchBar');
+        bar.classList.toggle('active');
+        if (bar.classList.contains('active')) {
+            $('#searchInput').focus();
+        } else {
+            $('#searchInput').value = '';
+            state.searchQuery = '';
+            $('#searchClear').classList.remove('active');
+            renderProducts();
+        }
+    };
+    
+    $('#searchInput').oninput = e => {
+        state.searchQuery = e.target.value.trim();
+        $('#searchClear').classList.toggle('active', state.searchQuery.length > 0);
+        renderProducts();
+    };
+    
+    $('#searchClear').onclick = () => {
+        $('#searchInput').value = '';
+        state.searchQuery = '';
+        $('#searchClear').classList.remove('active');
+        renderProducts();
+    };
+    
+    // Сортировка
+    $('#sortToggleBtn').onclick = e => {
+        e.stopPropagation();
+        $('#sortMenu').classList.toggle('active');
+        haptic();
+    };
+    
+    document.onclick = e => {
+        if (!$('#sortMenu').contains(e.target) && e.target !== $('#sortToggleBtn')) {
+            $('#sortMenu').classList.remove('active');
+        }
+    };
+    
     initSortHandlers();
     
+    // Очистка
+    $('#clearFavorites').onclick = () => {
+        state.favorites = [];
+        saveFavorites();
+        renderFavorites();
+        updateUI();
+    };
+    
+    $('#clearCart').onclick = () => {
+        if (!state.cart.length) return;
+        if (tg.showConfirm) {
+            tg.showConfirm('Очистить корзину?', ok => {
+                if (ok) { state.cart = []; saveCart(); renderCart(); updateUI(); }
+            });
+        } else {
+            state.cart = [];
+            saveCart();
+            renderCart();
+            updateUI();
+        }
+    };
+    
+    // Модальное окно
+    $('#modalClose').onclick = closeModal;
+    
+    $('#modalFavoriteBtn').onclick = e => {
+        e.stopPropagation();
+        if (modalState.productId) {
+            toggleFavorite(modalState.productId);
+            $('#modalFavoriteBtn').classList.toggle('active', state.favorites.includes(modalState.productId));
+        }
+    };
+    
+    $('#modalShareBtn').onclick = () => {
+        if (tg.shareUrl) tg.shareUrl(location.href);
+        else if (navigator.share) navigator.share({ title: $('#modalName').textContent, url: location.href });
+        haptic();
+    };
+    
+    $('#modalQtyPlus').onclick = () => { modalState.quantity++; $('#modalQtyValue').textContent = modalState.quantity; haptic(); };
+    $('#modalQtyMinus').onclick = () => { if (modalState.quantity > 1) { modalState.quantity--; $('#modalQtyValue').textContent = modalState.quantity; haptic(); } };
+    
+    $('#modalAddBtn').onclick = () => {
+        if (!modalState.productId) return;
+        for (let i = 0; i < modalState.quantity; i++) addToCart(modalState.productId, modalState.selectedSize);
+        closeModal();
+        navigateToPage('cart');
+        tg.HapticFeedback?.notificationOccurred('success');
+    };
+    
+    // Оформление заказа
+    $('#checkoutBtn').onclick = async () => {
+        if (!state.cart.length) return;
+        
+        const data = {
+            items: state.cart.map(i => ({ name: i.name, price: i.price, quantity: i.quantity })),
+            total: state.cart.reduce((s, i) => s + i.price * i.quantity, 0),
+            userId: tg.initDataUnsafe?.user?.id || 'unknown',
+            userName: tg.initDataUnsafe?.user?.first_name || 'Гость',
+            timestamp: new Date().toISOString()
+        };
+        
+        try {
+            await fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            tg.showAlert('✅ Заказ оформлен!');
+            state.cart = [];
+            saveCart();
+            renderCart();
+            updateUI();
+            tg.HapticFeedback?.notificationOccurred('success');
+        } catch {
+            tg.showAlert('❌ Ошибка оформления');
+        }
+    };
+    
+    // ESC
+    document.onkeydown = e => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if ($('#productModal').classList.contains('active')) { closeModal(); haptic(); return; }
+            if ($('#sortMenu').classList.contains('active')) { $('#sortMenu').classList.remove('active'); haptic(); return; }
+            if ($('#searchBar').classList.contains('active')) {
+                $('#searchBar').classList.remove('active');
+                $('#searchInput').value = '';
+                state.searchQuery = '';
+                renderProducts();
+                haptic();
+                return;
+            }
+            if (state.currentPage === 'catalog' && state.currentBrand !== 'all') {
+                state.currentBrand = 'all';
+                renderBrands();
+                renderProducts();
+                haptic();
+                return;
+            }
+            if (state.currentPage !== 'catalog') navigateToPage('catalog');
+        }
+    };
+    
+    // Инициализация
     loadProducts();
     loadProfile();
 });
-
-/**
- * Инициализация свайпа для превью товаров в каталоге
- */
-function initProductImageSwipes() {
-    document.querySelectorAll('.product-image-gallery').forEach(gallery => {
-        const productId = parseInt(gallery.dataset.productId);
-        const product = state.products.find(p => p.id === productId);
-        if (!product) return;
-        
-        const allImages = [];
-        if (product.image) allImages.push(product.image);
-        if (product.images && Array.isArray(product.images)) {
-            allImages.push(...product.images);
-        }
-        
-        if (allImages.length <= 1) return;
-        
-        const slides = gallery.querySelectorAll('.product-image-slide');
-        const indicators = gallery.querySelector('.product-image-indicators');
-        const dots = indicators?.querySelectorAll('.product-image-dot');
-        
-        let currentIndex = 0;
-        let touchStartX = 0;
-        let touchEndX = 0;
-        let isSwiping = false;
-        
-        // Touch events
-        gallery.addEventListener('touchstart', (e) => {
-            e.stopPropagation(); // Предотвращаем открытие модального окна
-            touchStartX = e.touches[0].clientX;
-            isSwiping = true;
-        }, { passive: true });
-        
-        gallery.addEventListener('touchmove', (e) => {
-            if (!isSwiping) return;
-            e.stopPropagation();
-        }, { passive: true });
-        
-        gallery.addEventListener('touchend', (e) => {
-            if (!isSwiping) return;
-            e.stopPropagation();
-            isSwiping = false;
-            touchEndX = e.changedTouches[0].clientX;
-            const swipeDistance = touchStartX - touchEndX;
-            const swipeThreshold = 50;
-            
-            if (Math.abs(swipeDistance) > swipeThreshold) {
-                if (swipeDistance > 0) {
-                    // Swipe left - next image (циклически)
-                    currentIndex = (currentIndex + 1) % allImages.length;
-                } else if (swipeDistance < 0) {
-                    // Swipe right - previous image (циклически)
-                    currentIndex = (currentIndex - 1 + allImages.length) % allImages.length;
-                }
-                
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            }
-        }, { passive: true });
-        
-        // Mouse events для десктопа
-        let mouseDown = false;
-        let mouseStartX = 0;
-        
-        gallery.addEventListener('mousedown', (e) => {
-            e.stopPropagation();
-            mouseDown = true;
-            mouseStartX = e.clientX;
-        });
-        
-        gallery.addEventListener('mouseup', (e) => {
-            if (!mouseDown) return;
-            e.stopPropagation();
-            mouseDown = false;
-            const mouseEndX = e.clientX;
-            const swipeDistance = mouseStartX - mouseEndX;
-            const swipeThreshold = 50;
-            
-            if (Math.abs(swipeDistance) > swipeThreshold) {
-                if (swipeDistance > 0) {
-                    // Swipe left - next image (циклически)
-                    currentIndex = (currentIndex + 1) % allImages.length;
-                } else if (swipeDistance < 0) {
-                    // Swipe right - previous image (циклически)
-                    currentIndex = (currentIndex - 1 + allImages.length) % allImages.length;
-                }
-                
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            }
-        });
-        
-        // Клики по бокам для переключения
-        const leftZone = document.createElement('div');
-        leftZone.className = 'product-image-left-zone';
-        leftZone.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (currentIndex > 0) {
-                currentIndex--;
-                updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-            }
-        });
-        
-        const rightZone = document.createElement('div');
-        rightZone.className = 'product-image-right-zone';
-        rightZone.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Циклический переход: после последнего → первое
-            currentIndex = (currentIndex + 1) % allImages.length;
-            updateProductGallery(gallery, currentIndex, allImages.length, slides, null, dots);
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        });
-        
-        gallery.appendChild(leftZone);
-        gallery.appendChild(rightZone);
-    });
-}
-
-/**
- * Обновление галереи превью товара
- */
-function updateProductGallery(gallery, index, total, slides, counter, dots) {
-    // Обновляем слайды
-    slides.forEach((slide, i) => {
-        slide.classList.toggle('active', i === index);
-        slide.style.transform = `translateX(${(i - index) * 100}%)`;
-    });
-    
-    // Обновляем точки (счетчик убран)
-    const indicators = gallery.querySelector('.product-image-indicators');
-    if (indicators) {
-        const allDots = indicators.querySelectorAll('.product-image-dot');
-        allDots.forEach((dot, i) => {
-            dot.classList.toggle('active', i === index);
-        });
-    }
-}
