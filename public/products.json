@@ -6,9 +6,9 @@
         "description": "Рубашка серая рабочая",
         "price": 14990,
         "emoji": "👕",
-        "image": "/images/rgrey.jpg",
+        "image": "/images/products/rgrey.jpg",
         "images": [
-            "/images/rgrey1.jpg"
+            "/images/products/rgrey.jpg"
         ],
         "fullDescription": "Плотная рабочая рубашка из 100% хлопка",
         "specs": [
@@ -25,9 +25,9 @@
         "description": "Рубашка черная рабочая",
         "price": 14990,
         "emoji": "👕",
-        "image": "/images/rblck.jpg",
+        "image": "/images/products/rblck.jpg",
         "images": [
-            "/images/rblck1.jpg"
+            "/images/products/rblck.jpg"
         ],
         "fullDescription": "Плотная рабочая рубашка из 100% хлопка",
         "specs": [
@@ -44,9 +44,9 @@
         "description": "Штаны серые рабочие",
         "price": 18990,
         "emoji": "👖",
-        "image": "/images/sgrey.jpg",
+        "image": "/images/products/sgrey.jpg",
         "images": [
-            "/images/sgrey1.jpg"
+            "/images/products/sgrey.jpg"
         ],
         "fullDescription": "Штаны серые рабочие из 100% хлопка, зауженные к низу",
         "specs": [
@@ -63,9 +63,9 @@
         "description": "Штаны черные рабочие",
         "price": 18990,
         "emoji": "👖",
-        "image": "/images/sblck.jpg",
+        "image": "/images/products/sblck.jpg",
         "images": [
-            "/images/sblck1.jpg"
+            "/images/products/sblck.jpg"
         ],
         "fullDescription": "Штаны черные рабочие из 100% хлопка, зауженные к низу",
         "specs": [
