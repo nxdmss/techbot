@@ -1,0 +1,9 @@
+node_modules
+shop.db
+.env
+.git
+.gitignore
+Dockerfile
+railway.json
+*.md
+
