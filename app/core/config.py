@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     WEB_APP_URL: Optional[str] = None
     RAILWAY_PUBLIC_DOMAIN: Optional[str] = None
     PORT: int = 8000
+    GEMINI_API_KEY: Optional[str] = None
 
     @property
     def resolved_web_app_url(self) -> str:

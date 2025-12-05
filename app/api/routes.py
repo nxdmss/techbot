@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.db.database import get_db
 from app.services.product_service import product_service
 from app.services.order_service import OrderService
+from app.services.image_generation_service import image_generation_service
 from app.schemas.product import Product
 from app.schemas.order import OrderCreate, OrderItemSchema
 from app.bot.loader import bot
@@ -95,3 +97,30 @@ async def create_order_endpoint(data: OrderCreate, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=500, detail="Internal Server Error")
         
     return {"success": True}
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+
+@router.post("/generate-image")
+async def generate_image_endpoint(request: GenerateImageRequest):
+    """
+    Генерирует изображение по текстовому запросу.
+    """
+    try:
+        image_bytes = await image_generation_service.generate_image(request.prompt)
+        
+        if not image_bytes:
+            raise HTTPException(status_code=500, detail="Не удалось сгенерировать изображение")
+        
+        return Response(
+            content=image_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f'attachment; filename="generated_{request.prompt[:20]}.png"'
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error generating image: {e}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")

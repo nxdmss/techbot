@@ -1,12 +1,15 @@
 import json
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
+from sqlalchemy import select
 from app.core.config import settings
 from app.bot.keyboards import get_main_keyboard, get_admin_order_keyboard
 from app.services.order_service import OrderService
+from app.services.image_generation_service import image_generation_service
 from app.db.database import AsyncSessionLocal
+from app.db.models import User
 from app.schemas.order import OrderCreate
 
 router = Router()
@@ -153,4 +156,48 @@ async def order_callback(callback: CallbackQuery, bot: Bot):
             print(f"Failed to notify user: {e}")
 
     await callback.answer("✅ Принят" if is_accept else "❌ Отклонён")
+
+@router.message(Command("generate") | Command("gen"))
+async def cmd_generate_image(message: Message):
+    """
+    Команда для генерации изображения.
+    Использование: /generate <описание изображения>
+    Пример: /generate красивая кошка на закате
+    """
+    # Получаем текст промпта из сообщения
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "🎨 *Генерация изображений*\n\n"
+            "Использование: `/generate <описание>`\n\n"
+            "Пример: `/generate красивая кошка на закате`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    prompt = command_parts[1]
+    
+    # Отправляем сообщение о начале генерации
+    status_msg = await message.answer("⏳ Генерирую изображение...")
+    
+    try:
+        # Генерируем изображение
+        image_bytes = await image_generation_service.generate_image(prompt)
+        
+        if image_bytes:
+            # Отправляем изображение
+            photo = BufferedInputFile(image_bytes, filename="generated_image.png")
+            await message.answer_photo(
+                photo,
+                caption=f"🎨 *Сгенерированное изображение*\n\n📝 Запрос: {prompt}",
+                parse_mode="Markdown"
+            )
+            await status_msg.delete()
+        else:
+            await status_msg.edit_text("❌ Не удалось сгенерировать изображение. Проверьте настройки API.")
+    except ValueError as e:
+        await status_msg.edit_text(f"❌ Ошибка: {str(e)}")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Произошла ошибка: {str(e)}")
+        print(f"Error generating image: {e}")
 
